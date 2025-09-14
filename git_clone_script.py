@@ -7,20 +7,85 @@ Description:    Automates the process of cloning student Git repos to your machi
 
                 Each user needs to set their user-specific globals.
 
-                Must provide at least assignment type and assignment number on command
-                line. Can optionally add deadline date. Strict order.
-                Example:    python3 git_clone_script.py  project 1 09/08/2025
+                Each user needs to set their semester specific date ranges
 
-                Checkout the commit prior to deadline
+                Must provide at least assignment type and assignment number on command
+                line. Can optionally add deadline date in ISO 8601 format. Strict order.
+                Example:    python3 git_clone_script.py  project 1 2025-09-08
+
+                if deadline is provided, checkout the last commit prior to deadline
 
                 Renames student projects to their repo name so can import into Eclipse
                 simultaneously
 """
 
-import os
 import sys
+import subprocess as sp
+from datetime import datetime
 from pathlib import Path
 import xml.etree.ElementTree as ET
+
+
+def is_valid_date():
+    """Ensures the deadline date provided by the user is in ISO 8601 format and the
+    date is within the semester range
+
+    :return: boolean
+    """
+    date_elements = sys.argv[3].split("-")
+
+    # ensure date is within semester range
+    if int(date_elements[0]) != SEM_YEAR:
+        print(f"Year is not of current semester ({SEM_YEAR})")
+        return False
+    if int(date_elements[1]) < SEM_MONTH_START or int(date_elements[1]) > SEM_MONTH_END:
+        print("Month out of range (09 to 12)")
+        return False
+
+    try:
+        datetime.strptime(sys.argv[3], "%Y-%m-%d")
+        return True
+    except ValueError:
+        print("invalid ISO 8601 date for [ASGN_DEADLINE]. Format: YYYY-MM-DD")
+        return False
+
+
+def num_valid_args():
+    """Ensures the user has entered an allowed number of arguments and they adhere to expected
+    types
+
+    :return: int
+    """
+    usage_statement = "Usage: python3 git_clone_script.py <ASGN_TYPE> <ASGN_NUMBER> [ASGN_DEADLINE]"
+
+    # check if exactly 2 arguments were entered correctly (assignment type & assignment number)
+    if len(sys.argv[1:]) == 2:
+        if not sys.argv[1].isalpha() or not sys.argv[2].isnumeric():
+            print(usage_statement)
+            exit(1)
+        return 2
+
+    # check if exactly 3 arguments were entered correctly (assignment type & assignment number &
+    # assignment deadline)
+    elif len(sys.argv[1:]) == 3:
+        if not sys.argv[1].isalpha() or not sys.argv[2].isnumeric() or not is_valid_date():
+            print(usage_statement)
+            exit(1)
+        return 3
+
+    # invalid number of arguments
+    elif len(sys.argv[1:]) < 2 or len(sys.argv[1:]) > 3:
+        print(usage_statement)
+        return len(sys.argv[1:])
+
+
+# --------------------------------------
+# set grading-semester-specific globals
+# --------------------------------------
+
+SEM_YEAR = 2025
+SEM_MONTH_START = 9
+SEM_MONTH_END = 12
 
 
 # ----------------------------------
@@ -29,28 +94,28 @@ import xml.etree.ElementTree as ET
 
 ASGN_TYPE = ""
 ASGN_NUMBER = ""
-
-# TODO: get assignment deadline fom command line arguments. Make it optional
 ASGN_DEADLINE = ""
 
-# check if exactly 3 arguments were entered correctly
-if len(sys.argv) == 3:
-    if not sys.argv[1].isalpha() or not sys.argv[2].isnumeric():
-        print("Usage: python3 git_clone_script.py <ASGN_TYPE> <ASGN_NUMBER>")
-        exit(1)
+num_args = num_valid_args()
+
+if num_args == 2:
     ASGN_TYPE = sys.argv[1]
     ASGN_NUMBER = sys.argv[2]
-elif len(sys.argv) <= 2 or len(sys.argv) > 3:
-    print("Usage: python3 git_clone_script.py <ASGN_TYPE> <ASGN_NUMBER>")
+    # common pieces of URL for all students
+    BASE_URL = f"https://github.com/CSc-335-Fall-2025/{ASGN_TYPE + "-" + ASGN_NUMBER}-[USERNAME].git"
+elif num_args == 3:
+    ASGN_TYPE = sys.argv[1]
+    ASGN_NUMBER = sys.argv[2]
+    ASGN_DEADLINE = datetime.strptime(sys.argv[3], "%Y-%m-%d")
+    # common pieces of URL for all students
+    BASE_URL = f"https://github.com/CSc-335-Fall-2025/{ASGN_TYPE + "-" + ASGN_NUMBER}-[USERNAME].git"
+else:
     exit(1)
 
-# common pieces of URL for all students
-BASE_URL = f"https://github.com/CSc-335-Fall-2025/{ASGN_TYPE + "-" + ASGN_NUMBER}-[USERNAME].git"
 
-
-# ------------------------
-# user-specific globals
-# ------------------------
+# ---------------------------
+# set user-specific globals
+# ---------------------------
 
 # path to destination for storing repos
 TARGET_DIR = "student_repos"
@@ -71,8 +136,8 @@ names_usernames = []
 for line in names_usernames_file.readlines()[1:]:
     line_elements = line.strip().split(",")
 
-    # if no username is recorded, skip it
-    if len(line_elements) < 2 or line_elements[1] == "":
+    # if no name or username is recorded, skip it
+    if len(line_elements) != 2 or line_elements[0].strip() == "" or line_elements[1].strip() == "":
         continue
 
     name, username = line_elements[0].strip(), line_elements[1].strip()
@@ -80,25 +145,33 @@ for line in names_usernames_file.readlines()[1:]:
 
 
 # ------------------------------------------------------------------------------------
-# clone student repos state prior to deadline to target directory and rename projects
+# clone students' repo state prior to deadline to target directory and rename projects
 # ------------------------------------------------------------------------------------
 
 total_clones = 0
 
 for name, username in names_usernames:
-    print("")
+    print("\n")
+    print("==================================================================")
     result_url = BASE_URL.replace("[USERNAME]", username)
     repo_name = ASGN_TYPE + "-" + ASGN_NUMBER + "-" + username
 
     # -C option specifies directory to mimic operating in
-    status = os.system(f"git -C {TARGET_DIR} clone {result_url}")
+    # use run() because want to manually check the return code
+    status = sp.run(["git", "-C", TARGET_DIR, "clone", result_url])
 
     # use os.WEXITSTATUS() because gives bash exit code
     # clone was successful
-    if os.WEXITSTATUS(status) == 0:
+    if status.returncode == 0:
 
         # get the last commit prior to deadline
-
+        commit_hash = sp.check_output(["git", "-C", f"{TARGET_DIR}/{repo_name}", "rev-list", "-n", "1", f"--before={ASGN_DEADLINE}", "master"],
+                                      text=True).strip()
+        if not commit_hash:
+            print(f"no commits before {ASGN_DEADLINE} for {name} ({username})")
+        else:
+            print(f"\n***CHECKING OUT LAST COMMIT PRIOR TO {ASGN_DEADLINE}***\n")
+            sp.run(["git", "-C", f"{TARGET_DIR}/{repo_name}", "checkout", commit_hash], )
 
         project_file = Path(f"{TARGET_DIR}/{repo_name}/.project")
         if project_file.exists():
@@ -110,6 +183,7 @@ for name, username in names_usernames:
             name_tag = root.find("name")
             name_tag.text = repo_name
             tree.write(project_file, encoding="UTF-8", xml_declaration=True)
+            print("")
             print(f"successfully renamed project to {repo_name}")
 
         total_clones += 1
