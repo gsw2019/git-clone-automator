@@ -190,4 +190,5 @@ for name, username in names_usernames:
     else:
         print(f"student name: {name}")
 
-print(f"\n\n{total_clones} student repos were cloned into {TARGET_DIR}")
+print("\n\n==================================================================")
+print(f"{total_clones} student repos were cloned into {TARGET_DIR}\n\n")
