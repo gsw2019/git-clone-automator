@@ -7,17 +7,20 @@ Description:    Automates the process of cloning student Git repos to your machi
 
                 Each user needs to set their user-specific globals.
 
-                Each user needs to set their semester specific date ranges
+                Each user needs to set their semester-specific date ranges
 
-                Must provide at least assignment type and assignment number on command
-                line. Can optionally add deadline date in ISO 8601 format. Strict order.
-                Example:    python3 git_clone_script.py  project 1 2025-09-08
-
-                if deadline is provided, checkout the last commit prior to deadline
+                Must provide at least assignment type and assignment number on command line.
+                Can optionally add deadline date and time in ISO 8601 format (YYYY-MM-DD or YYYY-MM-DD:HH).
+                Strict order.
+                If hour is not provided, defaults to 00:00:00
+                Example:    python3 git_clone_script.py  project 1              ->  most recent commit
+                Example:    python3 git_clone_script.py  project 1 2025-09-09   ->  last commit prior to Sept 9th, 2025 12:00 AM
+                Example:    python3 git_clone_script.py  lab 2 2025-09-20:19    ->  last commit prior to Sept 20th, 2025 7:00 PM
 
                 Renames student projects to their repo name so can import into Eclipse
                 simultaneously
 """
+
 
 import sys
 import subprocess as sp
@@ -34,20 +37,24 @@ def is_valid_date():
     """
     date_elements = sys.argv[3].split("-")
 
-    # ensure date is within semester range
+    # ensure year and month are within semester range
     if int(date_elements[0]) != SEM_YEAR:
         print(f"Year is not of current semester ({SEM_YEAR})")
         return False
     if int(date_elements[1]) < SEM_MONTH_START or int(date_elements[1]) > SEM_MONTH_END:
-        print("Month out of range (09 to 12)")
+        print(f"Month out of range ({SEM_MONTH_START} to {SEM_MONTH_END})")
         return False
 
     try:
         datetime.strptime(sys.argv[3], "%Y-%m-%d")
         return True
     except ValueError:
-        print("invalid ISO 8601 date for [ASGN_DEADLINE]. Format: YYYY-MM-DD")
-        return False
+        try:
+            datetime.strptime(sys.argv[3], "%Y-%m-%d:%H")
+            return True
+        except ValueError:
+            print("invalid ISO 8601 date for [ASGN_DEADLINE]. Format: YYYY-MM-DD or YYYY-MM-DD:HH")
+            return False
 
 
 def num_valid_args():
@@ -65,8 +72,7 @@ def num_valid_args():
             exit(1)
         return 2
 
-    # check if exactly 3 arguments were entered correctly (assignment type & assignment number &
-    # assignment deadline)
+    # check if exactly 3 arguments were entered correctly (assignment type & assignment number & assignment deadline)
     elif len(sys.argv[1:]) == 3:
         if not sys.argv[1].isalpha() or not sys.argv[2].isnumeric() or not is_valid_date():
             print(usage_statement)
@@ -79,9 +85,9 @@ def num_valid_args():
         return len(sys.argv[1:])
 
 
-# --------------------------------------
-# set grading-semester-specific globals
-# --------------------------------------
+# ----------------------------------
+# set semester-specific globals
+# ----------------------------------
 
 SEM_YEAR = 2025
 SEM_MONTH_START = 9
@@ -106,7 +112,13 @@ if num_args == 2:
 elif num_args == 3:
     ASGN_TYPE = sys.argv[1]
     ASGN_NUMBER = sys.argv[2]
-    ASGN_DEADLINE = datetime.strptime(sys.argv[3], "%Y-%m-%d")
+
+    # know its valid, just assign correct one
+    try:
+        ASGN_DEADLINE = datetime.strptime(sys.argv[3], "%Y-%m-%d")
+    except ValueError:
+        ASGN_DEADLINE = datetime.strptime(sys.argv[3], "%Y-%m-%d:%H")
+
     # common pieces of URL for all students
     BASE_URL = f"https://github.com/CSc-335-Fall-2025/{ASGN_TYPE + "-" + ASGN_NUMBER}-[USERNAME].git"
 else:
@@ -144,9 +156,9 @@ for line in names_usernames_file.readlines()[1:]:
     names_usernames.append((name, username))
 
 
-# ------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------
 # clone students' repo state prior to deadline to target directory and rename projects
-# ------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------
 
 total_clones = 0
 
@@ -160,33 +172,34 @@ for name, username in names_usernames:
     # use run() because want to manually check the return code
     status = sp.run(["git", "-C", TARGET_DIR, "clone", result_url])
 
-    # use os.WEXITSTATUS() because gives bash exit code
     # clone was successful
     if status.returncode == 0:
-
         # get the last commit prior to deadline
+        # key git command: rev-list
+        # should have a commit hash if repo was created, even if no pushes by student
         commit_hash = sp.check_output(["git", "-C", f"{TARGET_DIR}/{repo_name}", "rev-list", "-n", "1", f"--before={ASGN_DEADLINE}", "master"],
                                       text=True).strip()
-        if not commit_hash:
-            print(f"no commits before {ASGN_DEADLINE} for {name} ({username})")
-        else:
-            print(f"\n***CHECKING OUT LAST COMMIT PRIOR TO {ASGN_DEADLINE}***\n")
-            sp.run(["git", "-C", f"{TARGET_DIR}/{repo_name}", "checkout", commit_hash], )
 
+        print(f"\n***CHECKING OUT LAST COMMIT PRIOR TO {ASGN_DEADLINE}***\n")
+        sp.run(["git", "-C", f"{TARGET_DIR}/{repo_name}", "checkout", commit_hash], )
+
+        # change the project name
         project_file = Path(f"{TARGET_DIR}/{repo_name}/.project")
         if project_file.exists():
-            # use XML parsing and editing tool
+            # use XML parsing and editing tool (.project is XML)
             tree = ET.parse(project_file)
             root = tree.getroot()
-
             # change <name> tag
             name_tag = root.find("name")
             name_tag.text = repo_name
             tree.write(project_file, encoding="UTF-8", xml_declaration=True)
             print("")
             print(f"successfully renamed project to {repo_name}")
+        else:
+            print(f".project file not found in {repo_name}")
 
         total_clones += 1
+
     else:
         print(f"student name: {name}")
 
