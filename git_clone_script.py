@@ -7,7 +7,7 @@ Description:    Automates the process of cloning student Git repos to your machi
 
                 Each user needs to set their user-specific globals.
 
-                Each user needs to set their semester-specific date ranges
+                Each user needs to set their semester-specific date ranges.
 
                 Must provide at least assignment type and assignment number on command line.
                 Can optionally add deadline date and time in ISO 8601 format (YYYY-MM-DD or YYYY-MM-DD:HH).
@@ -180,7 +180,7 @@ for name, username in names_usernames:
                                       text=True).strip()
 
         print(f"\n***CHECKING OUT LAST COMMIT PRIOR TO {ASGN_DEADLINE}***\n")
-        sp.run(["git", "-C", f"{TARGET_DIR}/{repo_name}", "checkout", commit_hash], )
+        sp.run(["git", "-C", f"{TARGET_DIR}/{repo_name}", "checkout", commit_hash])
 
         # change the project name
         project_file = Path(f"{TARGET_DIR}/{repo_name}/.project")
