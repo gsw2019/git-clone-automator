@@ -35,12 +35,13 @@ def is_valid_date():
     :return: boolean
     """
     date_elements = sys.argv[3].split("-")
+    num_date_elements = len(date_elements)
 
     # ensure year and month are within semester range
-    if int(date_elements[0]) != SEM_YEAR:
+    if num_date_elements == 3 and int(date_elements[0]) != SEM_YEAR:
         print(f"Year is not of current semester ({SEM_YEAR})")
         return False
-    if int(date_elements[1]) < SEM_MONTH_START or int(date_elements[1]) > SEM_MONTH_END:
+    if num_date_elements == 3 and (int(date_elements[1]) < SEM_MONTH_START or int(date_elements[1]) > SEM_MONTH_END):
         print(f"Month out of range ({SEM_MONTH_START} to {SEM_MONTH_END})")
         return False
 
