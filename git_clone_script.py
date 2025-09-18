@@ -17,7 +17,7 @@ Description:    Automates the process of cloning student Git repos to your machi
                 Example:    python3 git_clone_script.py  project 1 2025-09-09   ->  last commit prior to Sept 9th, 2025 12:00 AM
                 Example:    python3 git_clone_script.py  lab 2 2025-09-20:19    ->  last commit prior to Sept 20th, 2025 7:00 PM
 
-                Renames student projects to their repo name so can import into Eclipse simultaneously
+                Renames student projects to their repo name so can import into Eclipse simultaneously.
 """
 
 
