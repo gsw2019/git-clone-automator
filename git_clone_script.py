@@ -188,7 +188,7 @@ for name, username in names_usernames:
             # use XML parsing and editing tool (.project is XML)
             tree = ET.parse(project_file)
             root = tree.getroot()
-            # change <name> tag
+            # change <name> tag, first instance is project name
             name_tag = root.find("name")
             name_tag.text = repo_name
             tree.write(project_file, encoding="UTF-8", xml_declaration=True)
