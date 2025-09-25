@@ -202,6 +202,7 @@ for name, username in names_usernames:
 
     else:
         print(f"student name: {name}")
+        print(f"student GitHub username: {username}")
 
 print("\n\n==================================================================")
 print(f"{total_clones} student repos were cloned into {TARGET_DIR}\n\n")
