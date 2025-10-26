@@ -164,7 +164,7 @@ total_clones = 0
 
 for name, username in names_usernames:
     print("\n")
-    print("==================================================================")
+    print("="*70)
     result_url = BASE_URL.replace("[USERNAME]", username)
     repo_name = ASGN_TYPE + "-" + ASGN_NUMBER + "-" + username
 
@@ -174,17 +174,19 @@ for name, username in names_usernames:
 
     # clone was successful
     if status.returncode == 0:
+        student_repo_local = f"{TARGET_DIR}/{repo_name}"
+
         # get the last commit prior to deadline
         # key git command: rev-list
         # should have a commit hash if repo was created, even if no pushes by student
-        commit_hash = sp.check_output(["git", "-C", f"{TARGET_DIR}/{repo_name}", "rev-list", "-n", "1", f"--before={ASGN_DEADLINE}", "master"],
+        commit_hash = sp.check_output(["git", "-C", student_repo_local, "rev-list", "-n", "1", f"--before={ASGN_DEADLINE}", "master"],
                                       text=True).strip()
 
         print(f"\n***CHECKING OUT LAST COMMIT PRIOR TO {ASGN_DEADLINE}***\n")
-        sp.run(["git", "-C", f"{TARGET_DIR}/{repo_name}", "checkout", commit_hash])
+        sp.run(["git", "-C", student_repo_local, "checkout", commit_hash])
 
-        # change the project name
-        project_file = Path(f"{TARGET_DIR}/{repo_name}/.project")
+        # change the project name if .project file found
+        project_file = Path(f"{student_repo_local}/.project")
         if project_file.exists():
             # use XML parsing and editing tool (.project is XML)
             tree = ET.parse(project_file)
@@ -193,10 +195,43 @@ for name, username in names_usernames:
             name_tag = root.find("name")
             name_tag.text = repo_name
             tree.write(project_file, encoding="UTF-8", xml_declaration=True)
-            print("")
-            print(f"successfully renamed project to {repo_name}")
+            print(f"\nsuccessfully renamed project to {repo_name}")
         else:
-            print(f".project file not found in {repo_name}")
+            # TODO: number of cases why the repo lacks a .project file. Could implement more robustness in future
+
+            # for now, assuming that if the repo lacks a .project file, we need to build the whole project,
+            # thus also adding .classpath file and putting .java files in a src folder at the least
+            print(f"\n.project file not found in {repo_name}")
+            print(f"injecting a .project file and .classpath file into student repo")
+
+            # create the src folder in students repo
+            new_src_folder = f"{student_repo_local}/src"
+            sp.run(['mkdir', new_src_folder])
+
+            # find all the .java files in their repo
+            # stdout will be the paths
+            java_files = sp.run(["find", student_repo_local, "-name", "*.java"], capture_output=True, text=True, check=True)
+
+            # move each file to src folder
+            for file in java_files.stdout.splitlines():
+                sp.run(["mv", file, new_src_folder], check=True)
+
+            # create the files
+            new_project_file = f"{student_repo_local}/.project"
+            new_classpath_file = f"{student_repo_local}/.classpath"
+            # need 'a' arg because we know the file doesnt exists (no arg defaults to 'r')
+            open(new_project_file, 'a').close()
+         open(new_classpath_file, 'a').close()
+            sp.run(['cp', 'project_file.txt', new_project_file])
+            sp.run(['cp', 'classpath_file.txt', new_classpath_file])
+
+            # use XML tool to get first name tag (project name)
+            tree = ET.parse(new_project_file)
+            root = tree.getroot()
+            name_tag = root.find("name")
+            name_tag.text = repo_name
+            tree.write(new_project_file, encoding="UTF-8", xml_declaration=True)
+            print(f"\nsuccessfully injected a .project file and .classpath file into {repo_name}")
 
         total_clones += 1
 
@@ -204,5 +239,5 @@ for name, username in names_usernames:
         print(f"student name: {name}")
         print(f"student GitHub username: {username}")
 
-print("\n\n==================================================================")
+print("\n\n" + "="*70)
 print(f"{total_clones} student repos were cloned into {TARGET_DIR}\n\n")
