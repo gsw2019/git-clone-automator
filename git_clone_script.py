@@ -221,7 +221,7 @@ for name, username in names_usernames:
             new_classpath_file = f"{student_repo_local}/.classpath"
             # need 'a' arg because we know the file doesnt exists (no arg defaults to 'r')
             open(new_project_file, 'a').close()
-         open(new_classpath_file, 'a').close()
+            open(new_classpath_file, 'a').close()
             sp.run(['cp', 'project_file.txt', new_project_file])
             sp.run(['cp', 'classpath_file.txt', new_classpath_file])
 
