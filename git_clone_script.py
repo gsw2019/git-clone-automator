@@ -9,6 +9,7 @@ Description:    Automates the process of cloning student Git repos to your machi
                 Assumes a .txt with minimal .classpath requirements exists locally.
                     • points to machines JRE
                     • points to Junit5
+                    • points to JavaFX that is set up in user libraries
 
                 User needs to set their user-specific globals.
 
