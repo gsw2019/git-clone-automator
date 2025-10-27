@@ -3,8 +3,9 @@ File:           git_clone_script.py
 Author:         Garret Wilson
 Description:    Automates the process of cloning student Git repos to your machine.
 
-                Assumes a .csv with student names and usernames exists locally.
-                Assumes the .csv has a header row detailing column names.
+                Assumes a .csv with student names and usernames exists locally (w/ header line).
+                Assumes a project_file.txt exists locally.
+                Assumes a classpath_file.txt exists locally.
 
                 Each user needs to set their user-specific globals.
 
