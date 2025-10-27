@@ -169,8 +169,8 @@ for line in names_usernames_file.readlines()[1:]:
 
 
 # --------------------------------------------------------------------------------------
-# clone students' repo states prior to deadline to target directory, rename projects,
-# and fix project structure if needed
+# clone students' repo states to target directory (prior to deadline, if provided),
+# rename projects, and fix project structure if needed
 # --------------------------------------------------------------------------------------
 
 def rename_project():
@@ -242,7 +242,7 @@ total_clones = 0
 
 for name, username in names_usernames:
     print("\n")
-    print("="*70)
+    print("="*80)
     result_url = BASE_URL.replace("[USERNAME]", username)
     repo_name = ASGN_TYPE + "-" + ASGN_NUMBER + "-" + username
 
@@ -255,21 +255,22 @@ for name, username in names_usernames:
     if status.returncode == 0:
         student_repo_local = f"{TARGET_DIR}/{repo_name}"
 
-        # need to ensure we have the correct default branch name
-        # stdout should be something like one of these:
-        #   refs/remotes/origin/master
-        #   refs/remotes/origin/main
-        default_branch = sp.check_output(["git", "-C", student_repo_local, "symbolic-ref", "refs/remotes/origin/HEAD"],
-                                         text=True).strip().split("/")[-1]
+        if ASGN_DEADLINE != "":
+            # need to ensure we have the correct default branch name
+            # stdout should be something like one of these:
+            #   refs/remotes/origin/master
+            #   refs/remotes/origin/main
+            default_branch = sp.check_output(["git", "-C", student_repo_local, "symbolic-ref", "refs/remotes/origin/HEAD"],
+                                             text=True).strip().split("/")[-1]
 
-        # get the last commit prior to deadline
-        # key git command: rev-list
-        # should have a commit hash if repo was created, even if no pushes by student
-        commit_hash = sp.check_output(["git", "-C", student_repo_local, "rev-list", "-n", "1", f"--before={ASGN_DEADLINE}", default_branch],
-                                      text=True).strip()
+            # get the last commit prior to deadline if provided
+            # key git command: rev-list
+            # should have a commit hash if repo was created, even if no pushes by student
+            commit_hash = sp.check_output(["git", "-C", student_repo_local, "rev-list", "-n", "1", f"--before={ASGN_DEADLINE}", default_branch],
+                text=True).strip()
 
-        print(f"\n\n***CHECKING OUT LAST COMMIT PRIOR TO {ASGN_DEADLINE}***\n\n")
-        sp.run(["git", "-C", student_repo_local, "checkout", commit_hash])
+            print(f"\n\n***CHECKING OUT LAST COMMIT PRIOR TO {ASGN_DEADLINE}***\n\n")
+            sp.run(["git", "-C", student_repo_local, "checkout", commit_hash])
 
         project_file = Path(f"{student_repo_local}/.project")
         classpath_file = Path(f"{student_repo_local}/.classpath")
@@ -315,5 +316,5 @@ for name, username in names_usernames:
         print(f"student name: {name}")
         print(f"student GitHub username: {username}")
 
-print("\n\n" + "="*70)
+print("\n\n" + "="*80)
 print(f"\n{total_clones} student repos were cloned into {TARGET_DIR}\n\n")
