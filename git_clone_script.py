@@ -3,13 +3,16 @@ File:           git_clone_script.py
 Author:         Garret Wilson
 Description:    Automates the process of cloning student Git repos to your machine.
 
-                Assumes a .csv with student names and usernames exists locally (w/ header line).
-                Assumes a project_file.txt exists locally.
-                Assumes a classpath_file.txt exists locally.
+                Assumes a .csv with student names and usernames exists locally
+                    • w/ header line
+                Assumes a .txt with minimal .project requirements exists locally.
+                Assumes a .txt with minimal .classpath requirements exists locally.
+                    • points to machines JRE
+                    • points to Junit5
 
-                Each user needs to set their user-specific globals.
+                User needs to set their user-specific globals.
 
-                Each user needs to set their semester-specific date ranges.
+                User needs to set their semester-specific date ranges.
 
                 Must provide at least assignment type and assignment number on command line.
                 Can optionally add deadline date and time in ISO 8601 format (YYYY-MM-DD or YYYY-MM-DD:HH).
@@ -29,6 +32,33 @@ import subprocess as sp
 from datetime import datetime
 from pathlib import Path
 import xml.etree.ElementTree as ET
+
+
+# ----------------------------------
+# USER: set user-specific globals
+# ----------------------------------
+
+# path to destination for storing repos
+TARGET_DIR = "student_repos"
+
+# path of .csv file that contains student GitHub usernames
+# expected format: student, username
+USERNAMES = "student_github_usernames.csv"
+
+# path to basic .project file
+PROJECT_FILE = "project_file.txt"
+
+# path to basic .classpath file
+CLASSPATH_FILE = "classpath_file.txt"
+
+
+# -------------------------------------
+# USER: set semester-specific globals
+# -------------------------------------
+
+SEM_YEAR = 2025
+SEM_MONTH_START = 9
+SEM_MONTH_END = 12
 
 
 def is_valid_date():
@@ -88,18 +118,9 @@ def num_valid_args():
         return len(sys.argv[1:])
 
 
-# ----------------------------------
-# set semester-specific globals
-# ----------------------------------
-
-SEM_YEAR = 2025
-SEM_MONTH_START = 9
-SEM_MONTH_END = 12
-
-
-# ----------------------------------
-# set assignment-specific globals
-# ----------------------------------
+# --------------------------------------------------------
+# set assignment-specific globals from command line args
+# --------------------------------------------------------
 
 ASGN_TYPE = ""
 ASGN_NUMBER = ""
@@ -129,18 +150,6 @@ else:
 
 
 # ---------------------------
-# set user-specific globals
-# ---------------------------
-
-# path to destination for storing repos
-TARGET_DIR = "student_repos"
-
-# path of .csv file that contains student GitHub usernames
-# expected format: student, username
-USERNAMES = "student_github_usernames.csv"
-
-
-# ---------------------------
 # get usernames fromm .csv
 # ---------------------------
 
@@ -161,13 +170,14 @@ for line in names_usernames_file.readlines()[1:]:
 
 # --------------------------------------------------------------------------------------
 # clone students' repo states prior to deadline to target directory, rename projects,
-# and add required project files if absent
+# and fix project structure if needed
 # --------------------------------------------------------------------------------------
 
 def rename_project():
     """
     renames the students Eclipse project to their repo name. Edits the .project file
     using XML parser package
+
     :return: None
     """
     # use XML parsing and editing tool (.project is XML)
@@ -183,28 +193,31 @@ def rename_project():
 def inject_project_file():
     """
     injects a basic .project file into student repo. Name tag is blank
+
     :return: None
     """
     new_project_file = f"{student_repo_local}/.project"
     # need 'a' arg because we know the file doesnt exists (no second arg defaults to 'r')
     open(new_project_file, 'a').close()
-    sp.run(['cp', 'project_file.txt', new_project_file])
+    sp.run(['cp', PROJECT_FILE, new_project_file])
 
 
 def inject_classpath_file():
     """
-    injects a basic .classpath file into student repo. Looks for machines JRE and Junit5
+    injects a basic .classpath file into student repo. Looks for machines JRE and Junit5 library
+
     :return: None
     """
     new_classpath_file = f"{student_repo_local}/.classpath"
     open(new_classpath_file, 'a').close()
-    sp.run(['cp', 'classpath_file.txt', new_classpath_file])
+    sp.run(['cp', CLASSPATH_FILE, new_classpath_file])
 
 
 def check_src_folder():
     """
-    creates a src folder in students repo and moves all .java files to it if one
-    doesn't exist
+    if src folder doesn't exist, creates a src folder in students repo and moves all .java files
+    to it
+
     :return: None
     """
     src_file_path = Path(f"{student_repo_local}/src")
