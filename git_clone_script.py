@@ -276,7 +276,7 @@ for name, username in names_usernames:
         project_file = Path(f"{student_repo_local}/.project")
         classpath_file = Path(f"{student_repo_local}/.classpath")
 
-        # TODO: number of cases that could be asssociated with project structure. Could implement more robustness in future
+        # TODO: number of cases that could be asssociated with project structure. Always room for more robustness
 
         # check project structure
         # assuming that if the repo lacks either a .project file or a .classpath file, we need to build the whole project,
