@@ -27,13 +27,11 @@ Description:    Automates the process of cloning student Git repos to your machi
                 Ensures project has minimal working structure. If not, adds the needed files and rebuilds the project.
 """
 
-
 import sys
 import subprocess as sp
 from datetime import datetime
 from pathlib import Path
 import xml.etree.ElementTree as ET
-
 
 # ----------------------------------
 # USER: set user-specific globals
@@ -51,7 +49,6 @@ PROJECT_FILE = "project_file.txt"
 
 # path to basic .classpath file
 CLASSPATH_FILE = "classpath_file.txt"
-
 
 # -------------------------------------
 # USER: set semester-specific globals
@@ -149,7 +146,6 @@ elif num_args == 3:
 else:
     exit(1)
 
-
 # ---------------------------
 # get usernames fromm .csv
 # ---------------------------
@@ -198,26 +194,30 @@ def inject_project_file():
     :return: None
     """
     new_project_file = f"{student_repo_local}/.project"
-    # need 'a' arg because we know the file doesnt exists (no second arg defaults to 'r')
+    # need 'a' arg because we know the file doesn't exist (no second arg defaults to 'r')
     open(new_project_file, 'a').close()
     sp.run(['cp', PROJECT_FILE, new_project_file])
+    print("injecting a .project file into student repo")
 
 
 def inject_classpath_file():
     """
-    injects a basic .classpath file into student repo. Looks for machines JRE and Junit5 library
+    injects a basic .classpath file into student repo. Looks for local machines JRE and Junit5 library
 
     :return: None
     """
     new_classpath_file = f"{student_repo_local}/.classpath"
     open(new_classpath_file, 'a').close()
     sp.run(['cp', CLASSPATH_FILE, new_classpath_file])
+    print("injecting a .classpath file into student repo")
 
 
 def check_src_folder():
     """
     if src folder doesn't exist, creates a src folder in students repo and moves all .java files
     to it
+
+    # TODO: if rebuild and make a src file, remove package declarations in .java files
 
     :return: None
     """
@@ -239,11 +239,56 @@ def check_src_folder():
             sp.run(["mv", file, new_src_folder], check=True)
 
 
+def check_project_file():
+    """
+    ensures the .project file has a minimum working format. If format is invalid,
+    will inject the basic project file
+
+    observed issues:
+        has <buildSpec> tag, but is missing child <buildCommand>
+        has <natures> tag, but is missing child <nature>
+
+    :return: None
+    """
+    tree = ET.parse(project_file)
+    root = tree.getroot()
+
+    if not root.find("buildCommand"):
+        inject_classpath_file()
+        return
+
+    if not root.find("nature"):
+        inject_classpath_file()
+        return
+
+
+def check_classpath_file():
+    """
+    ensures the .classpath file has a minimum working format. If format is invalid,
+    will inject the basic classpath file
+
+    observed issues:
+        many <classpathentry> tags with a kind="lib" attribute
+            - not using user libraries?
+
+    :return: None
+    """
+    tree = ET.parse(classpath_file)
+    root = tree.getroot()
+
+    # loop over all <classpathentry> tags and look for kind="lib" attribute
+    for tag in root.findall("classpathentry"):
+        for attribute, value in tag.attrib:
+            if attribute == "kind" and value == "lib":
+                inject_classpath_file()
+                return
+
+
 total_clones = 0
 
 for name, username in names_usernames:
     print("\n")
-    print("="*80)
+    print("=" * 80)
     result_url = BASE_URL.replace("[USERNAME]", username)
     repo_name = ASGN_TYPE + "-" + ASGN_NUMBER + "-" + username
 
@@ -267,7 +312,8 @@ for name, username in names_usernames:
             # get the last commit prior to deadline if provided
             # key git command: rev-list
             # should have a commit hash if repo was created, even if no pushes by student
-            commit_hash = sp.check_output(["git", "-C", student_repo_local, "rev-list", "-n", "1", f"--before={ASGN_DEADLINE}", default_branch],
+            commit_hash = sp.check_output(
+                ["git", "-C", student_repo_local, "rev-list", "-n", "1", f"--before={ASGN_DEADLINE}", default_branch],
                 text=True).strip()
 
             print(f"\n\n***CHECKING OUT LAST COMMIT PRIOR TO {ASGN_DEADLINE}***\n\n")
@@ -275,20 +321,21 @@ for name, username in names_usernames:
 
         project_file = Path(f"{student_repo_local}/.project")
         classpath_file = Path(f"{student_repo_local}/.classpath")
+        src_dir = Path(f"{student_repo_local}/src")
 
-        # TODO: number of cases that could be asssociated with project structure. Always room for more robustness
+        # TODO: number of cases that could be associated with project structure. Always room for more robustness
 
         # check project structure
         # assuming that if the repo lacks either a .project file or a .classpath file, we need to build the whole project,
         # thus adding the needed files and putting .java files in a src folder at the least
         successful_rebuild_message = f"successfully restructured project in {repo_name}"
-        if project_file.exists() and classpath_file.exists():
+        if project_file.exists() and classpath_file.exists() and src_dir.exists():
             print("\n")
+            check_project_file()
+            check_classpath_file()
             rename_project()
-        elif project_file.exists() and not classpath_file.exists():
+        elif project_file.exists() and not classpath_file.exists() and src_dir.exists():
             print(f"\n\n.classpath file not found in {repo_name}")
-            print("injecting a .classpath file into student repo")
-            print("building src folder in student repo if one doesnt exists")
             inject_classpath_file()
             check_src_folder()
             rename_project()
@@ -317,5 +364,5 @@ for name, username in names_usernames:
         print(f"student name: {name}")
         print(f"student GitHub username: {username}")
 
-print("\n\n" + "="*80)
+print("\n\n" + "=" * 80)
 print(f"\n{total_clones} student repos were cloned into {TARGET_DIR}\n\n")
