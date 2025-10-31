@@ -212,31 +212,27 @@ def inject_classpath_file():
     print("injecting a .classpath file into student repo")
 
 
-def check_src_folder():
+def create_src_dir():
     """
     if src folder doesn't exist, creates a src folder in students repo and moves all .java files
     to it
 
-    # TODO: if rebuild and make a src file, remove package declarations in .java files
+    # TODO: if rebuild and make a src file, check for package declarations in .java files and build them too
 
     :return: None
     """
-    src_file_path = Path(f"{student_repo_local}/src")
+    # create the src folder in students repo
+    new_src_folder = f"{student_repo_local}/src"
+    sp.run(['mkdir', new_src_folder])
 
-    # check if src file already exists
-    if not src_file_path.exists():
-        # create the src folder in students repo
-        new_src_folder = f"{student_repo_local}/src"
-        sp.run(['mkdir', new_src_folder])
+    # find all the .java files in their repo
+    # stdout will be the paths
+    java_files = sp.run(["find", student_repo_local, "-name", "*.java"],
+                        capture_output=True, text=True, check=True)
 
-        # find all the .java files in their repo
-        # stdout will be the paths
-        java_files = sp.run(["find", student_repo_local, "-name", "*.java"],
-                            capture_output=True, text=True, check=True)
-
-        # move each .java file to src folder
-        for file in java_files.stdout.splitlines():
-            sp.run(["mv", file, new_src_folder], check=True)
+    # move each .java file to src folder
+    for file in java_files.stdout.splitlines():
+        sp.run(["mv", file, new_src_folder], check=True)
 
 
 def check_project_file():
@@ -253,12 +249,16 @@ def check_project_file():
     tree = ET.parse(project_file)
     root = tree.getroot()
 
+    message_statement = "inappropriate .project file"
+
     if not root.find("buildCommand"):
-        inject_classpath_file()
+        print(message_statement)
+        inject_project_file()
         return
 
     if not root.find("nature"):
-        inject_classpath_file()
+        print(message_statement)
+        inject_project_file()
         return
 
 
@@ -268,18 +268,20 @@ def check_classpath_file():
     will inject the basic classpath file
 
     observed issues:
-        many <classpathentry> tags with a kind="lib" attribute
-            - not using user libraries?
+        many <classpathentry> tags with a kind="lib" attribute. Not using user libraries?
 
     :return: None
     """
     tree = ET.parse(classpath_file)
     root = tree.getroot()
 
+    message_statement = "inappropriate .classpath file"
+
     # loop over all <classpathentry> tags and look for kind="lib" attribute
     for tag in root.findall("classpathentry"):
         for attribute, value in tag.attrib:
             if attribute == "kind" and value == "lib":
+                print(message_statement)
                 inject_classpath_file()
                 return
 
@@ -319,44 +321,41 @@ for name, username in names_usernames:
             print(f"\n\n***CHECKING OUT LAST COMMIT PRIOR TO {ASGN_DEADLINE}***\n\n")
             sp.run(["git", "-C", student_repo_local, "checkout", commit_hash])
 
+        # TODO: number of cases that could be associated with project structure. Always room for more robustness
+
+        # gather important project contents
         project_file = Path(f"{student_repo_local}/.project")
         classpath_file = Path(f"{student_repo_local}/.classpath")
         src_dir = Path(f"{student_repo_local}/src")
 
-        # TODO: number of cases that could be associated with project structure. Always room for more robustness
+        # record project state
+        project_state = {project_file.name: project_file.exists(),
+                         classpath_file.name: classpath_file.exists(),
+                         src_dir.name: src_dir.exists()}
 
-        # check project structure
-        # assuming that if the repo lacks either a .project file or a .classpath file, we need to build the whole project,
-        # thus adding the needed files and putting .java files in a src folder at the least
-        successful_rebuild_message = f"successfully restructured project in {repo_name}"
-        if project_file.exists() and classpath_file.exists() and src_dir.exists():
-            print("\n")
+        # determine what is missing
+        missing = [name for name, present in project_state.items() if not present]
+
+        print("\n")
+        # okay project, but still need to look at .classpath and .project
+        if len(missing) == 0:
             check_project_file()
             check_classpath_file()
             rename_project()
-        elif project_file.exists() and not classpath_file.exists() and src_dir.exists():
-            print(f"\n\n.classpath file not found in {repo_name}")
-            inject_classpath_file()
-            check_src_folder()
-            rename_project()
-            print(successful_rebuild_message)
-        elif not project_file.exists() and classpath_file.exists():
-            print(f"\n\n.project file not found in {repo_name}")
-            print("injecting a .project file into student repo")
-            print("building src folder in student repo if one doesnt exists")
-            inject_project_file()
-            check_src_folder()
-            rename_project()
-            print(successful_rebuild_message)
-        elif not project_file.exists() and not classpath_file.exists():
-            print(f"\n\nneither a .project file or a .classpath file found in {repo_name}")
-            print("injecting a .project file and .classpath file")
-            print("building src folder in student repo if one doesnt exists")
+        # missing all minimum requirements
+        elif len(missing) == len(project_state):
+            print(f"project is missing: {", ".join(missing)}")
             inject_project_file()
             inject_classpath_file()
-            check_src_folder()
+            create_src_dir()
             rename_project()
-            print(successful_rebuild_message)
+        # missing some minimal requirements
+        # just pass missing list to all functions and determine if it needs to be done there?
+        elif 0 < len(missing) < len(project_state):
+
+            pass
+
+        successful_rebuild_message = f"successfully restructured project in {repo_name}"
 
         total_clones += 1
 
