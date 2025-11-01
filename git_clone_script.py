@@ -279,7 +279,7 @@ def check_classpath_file():
 
     # loop over all <classpathentry> tags and look for kind="lib" attribute
     for tag in root.findall("classpathentry"):
-        for attribute, value in tag.attrib:
+        for attribute, value in tag.attrib.items():
             if attribute == "kind" and value == "lib":
                 print(message_statement)
                 inject_classpath_file()
@@ -336,6 +336,9 @@ for name, username in names_usernames:
         # determine what is missing
         missing = [name for name, present in project_state.items() if not present]
 
+        if project_file.exists():
+            rename_project()
+
         print("\n")
         # okay project, but still need to look at .classpath and .project
         if len(missing) == 0:
@@ -352,10 +355,7 @@ for name, username in names_usernames:
         # missing some minimal requirements
         # just pass missing list to all functions and determine if it needs to be done there?
         elif 0 < len(missing) < len(project_state):
-
             pass
-
-        successful_rebuild_message = f"successfully restructured project in {repo_name}"
 
         total_clones += 1
 
