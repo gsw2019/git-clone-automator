@@ -231,11 +231,11 @@ def create_src_dir():
                         capture_output=True, text=True, check=True)
 
     # move each .java file to src folder
-    for file in java_files.stdout.splitlines():
-        sp.run(["mv", file, new_src_folder], check=True)
+    for java_file in java_files.stdout.splitlines():
+        sp.run(["mv", java_file, new_src_folder], check=True)
 
 
-def check_project_file():
+def check_project_file(missing_files=None):
     """
     ensures the .project file has a minimum working format. If format is invalid,
     will inject the basic project file
@@ -323,7 +323,7 @@ for name, username in names_usernames:
 
         # TODO: number of cases that could be associated with project structure. Always room for more robustness
 
-        # gather important project contents
+        # gather vital project contents
         project_file = Path(f"{student_repo_local}/.project")
         classpath_file = Path(f"{student_repo_local}/.classpath")
         src_dir = Path(f"{student_repo_local}/src")
@@ -334,28 +334,44 @@ for name, username in names_usernames:
                          src_dir.name: src_dir.exists()}
 
         # determine what is missing
-        missing = [name for name, present in project_state.items() if not present]
-
-        if project_file.exists():
-            rename_project()
+        missing_content = [item for item, present in project_state.items() if not present]
 
         print("\n")
-        # okay project, but still need to look at .classpath and .project
-        if len(missing) == 0:
-            check_project_file()
-            check_classpath_file()
-            rename_project()
+        # missing some minimal requirements
+        # TODO: just pass missing list to all functions and determine if it needs to be done there??
+        if 0 < len(missing_content) < len(project_state):
+            for item_name in project_state:
+                if item_name in missing_content:
+                    if item_name == project_file.name:
+                        inject_project_file()
+                    elif item_name == classpath_file.name:
+                        inject_classpath_file()
+                    elif item_name == src_dir.name:
+                        create_src_dir()
+                else:
+                    if item_name == project_file.name:
+                        check_project_file()
+                    elif item_name == classpath_file.name:
+                        check_project_file()
+                    elif item_name == src_dir.name:
+                        if not src_dir.exists():
+                            create_src_dir()
+
         # missing all minimum requirements
-        elif len(missing) == len(project_state):
-            print(f"project is missing: {", ".join(missing)}")
+        elif len(missing_content) == len(project_state):
+            print(f"project is missing: {", ".join([item.name for item in missing_content])}")
             inject_project_file()
             inject_classpath_file()
             create_src_dir()
             rename_project()
-        # missing some minimal requirements
-        # just pass missing list to all functions and determine if it needs to be done there?
-        elif 0 < len(missing) < len(project_state):
-            pass
+
+        # okay project, but still need to look at .classpath and .project and ensure has src dir
+        elif len(missing_content) == 0:
+            check_project_file()
+            check_project_file()
+            if not src_dir.exists():
+                create_src_dir()
+            rename_project()
 
         total_clones += 1
 
