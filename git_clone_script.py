@@ -15,13 +15,14 @@ Description:    Automates the process of cloning student Git repos to your machi
 
                 User needs to set their semester-specific date ranges.
 
-                Must provide at least assignment type and assignment number on command line.
-                Can optionally add deadline date and time in ISO 8601 format (YYYY-MM-DD or YYYY-MM-DD:HH).
-                Strict order.
-                If hour is not provided, defaults to 00:00:00.
-                Example:    python3 git_clone_script.py  project 1              ->  most recent commit
-                Example:    python3 git_clone_script.py  project 1 2025-09-09   ->  last commit prior to Sept 9th, 2025 12:00 AM
-                Example:    python3 git_clone_script.py  lab 2 2025-09-20:19    ->  last commit prior to Sept 20th, 2025 7:00 PM
+                Must provide at least assignment type on command line.
+                Can add assignment number if needed.
+                Can add deadline date and time in ISO 8601 format (YYYY-MM-DD or YYYY-MM-DD:HH), If hour is not
+                    provided, defaults to 00:00:00.
+                Example:    python3 git_clone_script.py  project 1               ->  most recent commit
+                Example:    python3 git_clone_script.py  project 1 2025-09-09    ->  last commit prior to Sept 9th, 2025 12:00 AM
+                Example:    python3 git_clone_script.py  lab 2 2025-09-20:19     ->  last commit prior to Sept 20th, 2025 7:00 PM
+                Example:    python3 git_clone_script.py  boardgames 2025-12-05   ->  last commit prior to Dec 5th, 2025 12:00 AM
 
                 Renames student projects to their repo name so can simultaneously import into Eclipse.
                 Ensures project has minimal working structure. If not, adds the needed files and rebuilds the project.
@@ -42,7 +43,9 @@ TARGET_DIR = "student_repos"
 
 # path of .csv file that contains student GitHub usernames
 # expected format: student, username
-USERNAMES = "student_github_usernames.csv"
+# USERNAMES = "student_github_usernames.csv"
+USERNAMES = "student_github_usernames_proj5.csv"
+# USERNAMES = "student_github_usernames_proj6.csv"
 
 # path to basic .project file
 PROJECT_FILE = "project_file.txt"
@@ -130,7 +133,8 @@ if num_args == 2:
     ASGN_TYPE = sys.argv[1]
     ASGN_NUMBER = sys.argv[2]
     # common pieces of URL for all students
-    BASE_URL = f"https://github.com/CSc-335-Fall-2025/{ASGN_TYPE + "-" + ASGN_NUMBER}-[USERNAME].git"
+    BASE_URL = f"https://github.com/CSc-335-Fall-2025/{ASGN_TYPE}-{ASGN_NUMBER}-[USERNAME].git"
+    # BASE_URL = f"https://github.com/CSc-335-Fall-2025/-[USERNAME].git"
 elif num_args == 3:
     ASGN_TYPE = sys.argv[1]
     ASGN_NUMBER = sys.argv[2]
@@ -142,7 +146,8 @@ elif num_args == 3:
         ASGN_DEADLINE = datetime.strptime(sys.argv[3], "%Y-%m-%d:%H")
 
     # common pieces of URL for all students
-    BASE_URL = f"https://github.com/CSc-335-Fall-2025/{ASGN_TYPE + "-" + ASGN_NUMBER}-[USERNAME].git"
+    BASE_URL = f"https://github.com/CSc-335-Fall-2025/{ASGN_TYPE}-{ASGN_NUMBER}-[USERNAME].git"
+    # BASE_URL = f"https://github.com/CSc-335-Fall-2025/-[USERNAME].git"
 else:
     exit(1)
 
