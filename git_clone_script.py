@@ -15,16 +15,14 @@ Description:    Automates the process of cloning student Git repos to your machi
 
                 User needs to set their semester-specific date ranges.
 
-                Must provide at least assignment type on command line.
-                Can add assignment number if needed.
+                Must provide at least assignment type and assignment number on command line.
                 Can add deadline date and time in ISO 8601 format (YYYY-MM-DD or YYYY-MM-DD:HH), If hour is not
                     provided, defaults to 00:00:00.
                 Example:    python3 git_clone_script.py  project 1               ->  most recent commit
                 Example:    python3 git_clone_script.py  project 1 2025-09-09    ->  last commit prior to Sept 9th, 2025 12:00 AM
                 Example:    python3 git_clone_script.py  lab 2 2025-09-20:19     ->  last commit prior to Sept 20th, 2025 7:00 PM
-                Example:    python3 git_clone_script.py  boardgames 2025-12-05   ->  last commit prior to Dec 5th, 2025 12:00 AM
 
-                Renames student projects to their repo name so can simultaneously import into Eclipse.
+                Renames student projects to their repo name so can simultaneously import all projects into Eclipse.
                 Ensures project has minimal working structure. If not, adds the needed files and rebuilds the project.
 """
 
@@ -183,6 +181,7 @@ def rename_project():
     :return: None
     """
     # use XML parsing and editing tool (.project is XML)
+    # should only rename after checking project file. Don't need try-except here
     tree = ET.parse(project_file)
     root = tree.getroot()
     # change <name> tag, first instance is project name
@@ -245,31 +244,29 @@ def create_src_dir():
 def check_project_file():
     """
     ensures the .project file has a minimum working format. If format is invalid,
-    will inject the basic project file
+    will inject the basic project file.
 
     observed issues:
-        has <buildSpec> tag, but is missing child <buildCommand>
-        has <natures> tag, but is missing child <nature>
+        - has <buildSpec> tag, but is missing child <buildCommand>
+        - has <natures> tag, but is missing child <nature>
+        - has git merge conflict remnants thus the ElementTree parser fails
 
     :return: None
     """
-    tree = ET.parse(project_file)
-    root = tree.getroot()
+    try:
+        tree = ET.parse(project_file)
+        root = tree.getroot()
 
-    message_statement = "inappropriate .project file"
+        # .// tells the XML parser to search recursively for tag (XPath)
+        # to avoid warnings must compare to None instead of checking truthy or falsy
+        if root.find(".//buildCommand") is None or root.find(".//nature") is None:
+            print("inappropriate .project file")
+            inject_project_file()
+            return
 
-    # .// tells the XML parser to search recursively for tag (XPath)
-    # to avoid warnings must compare to None instead of checking truthy or falsy
-    if root.find(".//buildCommand") is None:
-        print(message_statement)
+    except ET.ParseError as e:
+        print(f"could not parse .project file: {e.msg.capitalize()}")
         inject_project_file()
-        return
-
-    if root.find(".//nature") is None:
-        print("No nature tag?")
-        print(message_statement)
-        inject_project_file()
-        return
 
 
 def check_classpath_file():
@@ -278,26 +275,32 @@ def check_classpath_file():
     will inject the basic classpath file
 
     observed issues:
-        many <classpathentry> tags with a kind="lib" attribute. Not using user libraries?
+        - many <classpathentry> tags with a kind="lib" attribute. Seems not using user libraries
+        - has git merge conflict remnants thus the ElementTree parser fails
 
     :return: None
     """
-    tree = ET.parse(classpath_file)
-    root = tree.getroot()
+    try:
+        tree = ET.parse(classpath_file)
+        root = tree.getroot()
 
-    message_statement = "inappropriate .classpath file"
+        # loop over all <classpathentry> tags and look for kind="lib" attribute
+        for tag in root.findall("classpathentry"):
+            for attribute, value in tag.attrib.items():
+                if attribute == "kind" and value == "lib":
+                    print("inappropriate .classpath file")
+                    inject_classpath_file()
+                    return
 
-    # loop over all <classpathentry> tags and look for kind="lib" attribute
-    for tag in root.findall("classpathentry"):
-        for attribute, value in tag.attrib.items():
-            if attribute == "kind" and value == "lib":
-                print(message_statement)
-                inject_classpath_file()
-                return
+    except ET.ParseError as e:
+        print(f"could not parse .classpath file. {e.msg.capitalize()}")
+        inject_classpath_file()
 
 
 total_clones = 0
 
+# each iteration the globals are getting reset before the parameterless functions that use them are called
+# could just pass them to functions to begin looking a bit more modular and facilitate better understandability
 for name, username in names_usernames:
     print("\n")
     print("=" * 80)
@@ -318,8 +321,9 @@ for name, username in names_usernames:
             # stdout should be something like one of these:
             #   refs/remotes/origin/master
             #   refs/remotes/origin/main
-            default_branch = sp.check_output(["git", "-C", student_repo_local, "symbolic-ref", "refs/remotes/origin/HEAD"],
-                                             text=True).strip().split("/")[-1]
+            default_branch = sp.check_output(
+                ["git", "-C", student_repo_local, "symbolic-ref", "refs/remotes/origin/HEAD"],
+                text=True).strip().split("/")[-1]
 
             # get the last commit prior to deadline if provided
             # key git command: rev-list
@@ -380,6 +384,7 @@ for name, username in names_usernames:
             if not src_dir.exists():
                 create_src_dir()
 
+        # always executed after checking .project, so we know it's parsable by the time reach here
         rename_project()
 
         total_clones += 1
