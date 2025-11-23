@@ -1,4 +1,4 @@
-# Git-Clone-Script
+# git-clone-automator
 
 TODO
 
