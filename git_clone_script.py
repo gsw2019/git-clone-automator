@@ -1,29 +1,28 @@
 """
-File:           git_clone_script.py
-Author:         Garret Wilson
-Description:    Automates the process of cloning student Git repos to your machine.
+@author         Garret Wilson
 
-                Assumes a .csv with student names and usernames exists locally
-                    • w/ header line
+Description:    Automates the process of cloning student Git repos to local machine.
+
+Requirements:   Assumes a .csv with student names and usernames exists locally
+                    • with header line
                 Assumes a .txt with minimal .project requirements exists locally.
                 Assumes a .txt with minimal .classpath requirements exists locally.
-                    • points to machines JRE
+                    • points to local machines JRE
                     • points to Junit5
-                    • points to JavaFX that is set up in user libraries
+                    • points to JavaFX that is expected to be set up in user libraries
+                User needs to set their user-specific and semester-specific globals.
 
-                User needs to set their user-specific globals.
-
-                User needs to set their semester-specific date ranges.
-
-                Must provide at least assignment type and assignment number on command line.
-                Can add deadline date and time in ISO 8601 format (YYYY-MM-DD or YYYY-MM-DD:HH), If hour is not
-                    provided, defaults to 00:00:00.
-                Example:    python3 git_clone_script.py  project 1               ->  most recent commit
-                Example:    python3 git_clone_script.py  project 1 2025-09-09    ->  last commit prior to Sept 9th, 2025 12:00 AM
-                Example:    python3 git_clone_script.py  lab 2 2025-09-20:19     ->  last commit prior to Sept 20th, 2025 7:00 PM
-
-                Renames student projects to their repo name so can simultaneously import all projects into Eclipse.
+Bonus Features: Renames student projects to their repo name so can simultaneously import all projects into Eclipse.
                 Ensures project has minimal working structure. If not, adds the needed files and rebuilds the project.
+
+Invocation:     Must provide at least assignment type on command line
+                Can also provide an assignment number (most assignments)
+                Can optionally provide a deadline date in ISO 8601 format (YYYY-MM-DD or YYYY-MM-DD:HH). If hour is not
+                    provided, defaults to 00:00:00.
+                Example:    python3 git_clone_script.py project 1                   ->  most recent commit
+                Example:    python3 git_clone_script.py project 1 -d 2025-09-09     ->  last commit prior to Sept 9th, 2025 12:00 AM
+                Example:    python3 git_clone_script.py lab 2 -d 2025-09-20:19      ->  last commit prior to Sept 20th, 2025 7:00 PM
+                Example:    python3 git_clone_script.py BoardGames -d 2025-12-08    ->  last commit prior to Dec 8th, 2025 12:00AM
 """
 
 
@@ -35,7 +34,7 @@ import argparse
 
 
 # -------------------------------------------------------
-# USER: set user-specific and semester specific globals
+# USER: set user-specific and semester-specific globals
 # -------------------------------------------------------
 
 # path of .csv file that contains student GitHub usernames
@@ -148,9 +147,6 @@ def get_names_usernames(names_usernames_file):
         names_usernames.append((name, username))
 
     return names_usernames
-
-
-# ---------------------------------------------------------------------------
 
 
 def rename_project(project_file, repo_name):
@@ -281,7 +277,7 @@ def is_valid_classpath_file(classpath_file):
 
 def main():
     # --------------------------------------------
-    # Gather info for clones and project fixing
+    # Gather info for clones and project renaming
     # --------------------------------------------
     args = get_args()
     ASGN_TYPE = getattr(args, "ASGN_TYPE")
