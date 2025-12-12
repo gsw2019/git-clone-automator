@@ -40,9 +40,9 @@ import argparse
 
 # path of .csv file that contains student GitHub usernames
 # expected format: student, username
-USERNAMES = "student_github_usernames.csv"
+# USERNAMES = "student_github_usernames.csv"
 # USERNAMES = "student_github_usernames_proj5.csv"
-# USERNAMES = "student_github_usernames_proj6.csv"
+USERNAMES = "student_github_usernames_proj6.csv"
 
 # path to destination for storing repos
 TARGET_DIR = "student_repos"
@@ -66,10 +66,10 @@ def get_args():
     # use library tool to get CL arguments
     # if invoked inappropriately will show a helpful usage message
     parser = argparse.ArgumentParser()
-    parser.add_argument("ASGN_TYPE", type=str)                              # positional arg
-    parser.add_argument("ASGN_NUMBER", nargs="?", type=int, default=None)   # positional arg
-    parser.add_argument("--deadline", "-d")                                 # optional arg
-    parser.add_argument("--file", "-f")                                     # optional arg
+    parser.add_argument("ASGN_TYPE", type=str)                                  # positional arg
+    parser.add_argument("ASGN_NUMBER", nargs="?", type=int, default=None)       # positional arg
+    parser.add_argument("-d", "--deadline", help="deadline date in ISO 8601")   # optional arg
+    parser.add_argument("-f", "--file", help="path to TA test suite")           # optional arg
     cl_args = parser.parse_args()      # default comes from sys.argv
 
     # check date if provided
