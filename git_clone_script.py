@@ -17,9 +17,9 @@ Invocation:     Must provide at least assignment type on command line.
                 Can also provide an assignment number.
                 Can optionally provide a deadline date in ISO 8601 format (YYYY-MM-DD)
                 Example:    python3 git_clone_script.py project 1                   ->  most recent commit
-                Example:    python3 git_clone_script.py project 1 -d 2025-09-08     ->  last commit prior to Sept 9th, 2025 12:00 AM
-                Example:    python3 git_clone_script.py lab 2 -d 2025-09-20         ->  last commit prior to Sept 21st, 2025 12:00 AM
-                Example:    python3 git_clone_script.py BoardGames -d 2025-12-08    ->  last commit prior to Dec 9th, 2025 12:00AM
+                Example:    python3 git_clone_script.py project 1 -d 2025-09-09     ->  last commit prior to Sept 9th, 2025 12:00 AM
+                Example:    python3 git_clone_script.py lab 2 -d 2025-09-21         ->  last commit prior to Sept 21st, 2025 12:00 AM
+                Example:    python3 git_clone_script.py BoardGames -d 2025-12-09    ->  last commit prior to Dec 9th, 2025 12:00AM
 """
 
 
@@ -276,7 +276,7 @@ def main():
     args = get_args()
     ASGN_TYPE = getattr(args, "ASGN_TYPE")
     ASGN_NUMBER = getattr(args, "ASGN_NUMBER")
-    ASGN_DEADLINE = f"{getattr(args, 'deadline')} 23:59:59"
+    ASGN_DEADLINE = f"{getattr(args, 'deadline')} 00:00:00"
     ASGN_TEST = getattr(args, "file")
 
     base_url = build_base_url(args)
