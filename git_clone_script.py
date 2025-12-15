@@ -3,26 +3,23 @@
 
 Description:    Automates the process of cloning student Git repos to local machine.
 
-Requirements:   Assumes a .csv with student names and usernames exists locally
+Requirements:   Assumes a .csv with student names and usernames exists locally.
                     • with header line
                 Assumes a .txt with minimal .project requirements exists locally.
                 Assumes a .txt with minimal .classpath requirements exists locally.
-                    • points to local machines JRE
-                    • points to Junit5
-                    • points to JavaFX that is expected to be set up in user libraries
+                    • points to local machines JRE, JUnit 5, and JavaFX (expected to be user library)
                 User needs to set their user-specific and semester-specific globals.
 
 Bonus Features: Renames student projects to their repo name so can simultaneously import all projects into Eclipse.
                 Ensures project has minimal working structure. If not, adds the needed files and rebuilds the project.
 
-Invocation:     Must provide at least assignment type on command line
-                Can also provide an assignment number (most assignments)
-                Can optionally provide a deadline date in ISO 8601 format (YYYY-MM-DD or YYYY-MM-DD:HH). If hour is not
-                    provided, defaults to 00:00:00.
+Invocation:     Must provide at least assignment type on command line.
+                Can also provide an assignment number.
+                Can optionally provide a deadline date in ISO 8601 format (YYYY-MM-DD)
                 Example:    python3 git_clone_script.py project 1                   ->  most recent commit
-                Example:    python3 git_clone_script.py project 1 -d 2025-09-09     ->  last commit prior to Sept 9th, 2025 12:00 AM
-                Example:    python3 git_clone_script.py lab 2 -d 2025-09-20:19      ->  last commit prior to Sept 20th, 2025 7:00 PM
-                Example:    python3 git_clone_script.py BoardGames -d 2025-12-08    ->  last commit prior to Dec 8th, 2025 12:00AM
+                Example:    python3 git_clone_script.py project 1 -d 2025-09-08     ->  last commit prior to Sept 9th, 2025 12:00 AM
+                Example:    python3 git_clone_script.py lab 2 -d 2025-09-20         ->  last commit prior to Sept 21st, 2025 12:00 AM
+                Example:    python3 git_clone_script.py BoardGames -d 2025-12-08    ->  last commit prior to Dec 9th, 2025 12:00AM
 """
 
 
@@ -74,6 +71,7 @@ def get_args():
     # check date if provided
     if getattr(cl_args, "deadline") is not None and not is_valid_date(getattr(cl_args, "deadline")):
         print(parser.print_help())
+        exit(1)
 
     return cl_args
 
@@ -100,12 +98,8 @@ def is_valid_date(date):
         datetime.strptime(date, "%Y-%m-%d")
         return True
     except ValueError:
-        try:
-            datetime.strptime(date, "%Y-%m-%d:%H")
-            return True
-        except ValueError:
-            print("Invalid ISO 8601 date for [--deadline DEADLINE]. Format: YYYY-MM-DD or YYYY-MM-DD:HH")
-            return False
+        print("Invalid ISO 8601 date for [--deadline DEADLINE]. Format: YYYY-MM-DD")
+        return False
 
 
 def build_base_url(args):
@@ -282,7 +276,7 @@ def main():
     args = get_args()
     ASGN_TYPE = getattr(args, "ASGN_TYPE")
     ASGN_NUMBER = getattr(args, "ASGN_NUMBER")
-    ASGN_DEADLINE = getattr(args, "deadline")
+    ASGN_DEADLINE = f"{getattr(args, 'deadline')} 23:59:59"
     ASGN_TEST = getattr(args, "file")
 
     base_url = build_base_url(args)
@@ -383,7 +377,7 @@ def main():
                 if not is_valid_classpath_file(classpath_file):
                     inject_classpath_file(student_repo_local)
                 if not src_dir.exists():
-                    create_src_dir()
+                    create_src_dir(student_repo_local)
 
             # always executed after checking .project, so we know it's parsable by the time reach here
             rename_project(project_file, repo_name)
