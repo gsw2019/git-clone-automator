@@ -37,8 +37,8 @@ import argparse
 # path of .csv file that contains student GitHub usernames
 # expected format: student, username
 # USERNAMES = "student_github_usernames.csv"
-# USERNAMES = "student_github_usernames_proj5.csv"
-USERNAMES = "student_github_usernames_proj6.csv"
+# USERNAMES = "proj5_student_github_usernames.csv"
+USERNAMES = "proj6_student_github_usernames.csv"
 
 # path to destination for storing repos
 TARGET_DIR = "student_repos"
@@ -276,7 +276,11 @@ def main():
     args = get_args()
     ASGN_TYPE = getattr(args, "ASGN_TYPE")
     ASGN_NUMBER = getattr(args, "ASGN_NUMBER")
-    ASGN_DEADLINE = f"{getattr(args, 'deadline')} 00:00:00"
+
+    ASGN_DEADLINE = getattr(args, 'deadline')
+    if ASGN_DEADLINE is not None:
+        ASGN_DEADLINE = datetime.strptime(ASGN_DEADLINE, "%Y-%m-%d")    # appends 00:00:00 onto the date
+
     ASGN_TEST = getattr(args, "file")
 
     base_url = build_base_url(args)
@@ -292,10 +296,10 @@ def main():
         print("=" * 80)
         result_url = base_url.replace("[USERNAME]", username)
 
-        if ASGN_NUMBER is None:
-            repo_name = f"{ASGN_TYPE}-{username}"
-        else:
+        if ASGN_NUMBER is not None:
             repo_name = f"{ASGN_TYPE}-{ASGN_NUMBER}-{username}"
+        else:
+            repo_name = f"{ASGN_TYPE}-{username}"
 
         # clone student repo
         # -C option specifies directory to mimic operating in

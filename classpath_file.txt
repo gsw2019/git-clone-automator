@@ -14,7 +14,7 @@
 	<!-- points to JUnit5 Library -->
  	<classpathentry kind="con" path="org.eclipse.jdt.junit.JUNIT_CONTAINER/5"/>
 
-	<!-- points to Eclipse JavaFX created in user libraries -->
+	<!-- points to JavaFX created in user libraries -->
 	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/JavaFX"/>
 
 	<!-- out folder -->
