@@ -30,9 +30,9 @@ import xml.etree.ElementTree as ET
 import argparse
 
 
-# -------------------------------------------------------
-# USER: set user-specific and semester-specific globals
-# -------------------------------------------------------
+# --------------------------------------
+# USER: set user-specific globals
+# --------------------------------------
 
 # path of .csv file that contains student GitHub usernames
 # expected format: student, username
@@ -48,10 +48,6 @@ PROJECT_FILE = "project_file.txt"
 
 # path to basic .classpath file
 CLASSPATH_FILE = "classpath_file.txt"
-
-SEM_YEAR = 2025
-SEM_MONTH_START = 9
-SEM_MONTH_END = 12
 
 
 def get_args():
@@ -82,17 +78,6 @@ def is_valid_date(date):
 
     :return: boolean
     """
-    date_elements = date.split("-")
-    num_date_elements = len(date_elements)
-
-    # ensure year and month are within semester range
-    if num_date_elements == 3 and int(date_elements[0]) != SEM_YEAR:
-        print(f"Year is not of current semester ({SEM_YEAR})")
-        return False
-    if num_date_elements == 3 and (int(date_elements[1]) < SEM_MONTH_START or int(date_elements[1]) > SEM_MONTH_END):
-        print(f"Month out of range ({SEM_MONTH_START} to {SEM_MONTH_END})")
-        return False
-
     # check datetime can be parsed
     try:
         datetime.strptime(date, "%Y-%m-%d")
