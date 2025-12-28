@@ -384,8 +384,6 @@ def main():
                 print(f"\n\n***CHECKING OUT LAST COMMIT PRIOR TO {ASGN_DEADLINE}***\n\n")
                 sp.run(["git", "-C", student_repo_local, "checkout", commit_hash])
 
-            # TODO: number of cases that could be associated with project structure. Always room for more robustness
-
             # define vital project contents
             project_file = Path(f"{student_repo_local}/.project")       # should always be top-level
             classpath_file = Path(f"{student_repo_local}/.classpath")   # should always be top-level
