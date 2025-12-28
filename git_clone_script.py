@@ -153,6 +153,7 @@ def is_valid_classpath_file(classpath_file):
 
     observed issues:
         - many <classpathentry> tags with a kind="lib" attribute. Seems not using user libraries
+        - <classpathentry> tags with a kind="src" and
         - has git merge conflict remnants thus the ElementTree parser fails
 
     :param classpath_file: path to the .classpath file
@@ -164,16 +165,18 @@ def is_valid_classpath_file(classpath_file):
 
         # loop over all <classpathentry> tags and look for known issue attributes
         for tag in root.findall("classpathentry"):
-            for attribute, value in tag.attrib.items():
-                # using local machine paths
-                if attribute == "kind" and value == "lib":
-                    print(f"inappropriate .classpath file: classpathentry tag with attribute and value as {attribute}={value}")
+            type_of_entry = tag.get("kind")
+
+            if type_of_entry == "lib":
+                print(f"bad .classpath file: classpathentry tag with attribute and value as kind={type_of_entry}")
+                return False
+
+            elif type_of_entry == "src":
+                path_to_src = tag.get("path")
+                # only case encountered of bad src pointer
+                if path_to_src == "":
+                    print(f"bad .classpath file: classpathentry tag with attribute and value as path={path_to_src}")
                     return False
-
-                # TODO: check if src is blank. Assume that means no src folder
-
-                elif attribute == "src":
-                    pass
 
         return True
 
@@ -258,8 +261,8 @@ def inject_project_file(student_repo_local):
 
 
 def create_src_dir(student_repo_local):
-    """If src directory doesn't exist, creates a src directory in students repo and moves all .java files to it.
-    Also creates any packages that should be inside the src dir.
+    """If src directory doesn't exist, creates a src directory in students repo with all packages and
+    puts .java files in their respective packages
 
     :param student_repo_local: local path to student repo
     :return: path to new local src dir
@@ -277,6 +280,8 @@ def create_src_dir(student_repo_local):
     # stdout will be the full paths from the target dir
     java_files = sp.run(["find", student_repo_local, "-name", "*.java"],
                         capture_output=True, text=True, check=True).stdout.splitlines()
+
+    # TODO: main file usually doesnt have a package declaration. Currently getting left out of src
 
     packages = []   # keep a running list so don't duplicate packages
     # check if any .java files declare packages
