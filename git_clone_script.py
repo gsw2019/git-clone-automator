@@ -387,15 +387,15 @@ def main():
             # TODO: number of cases that could be associated with project structure. Always room for more robustness
 
             # define vital project contents
-            project_file = Path(f"{student_repo_local}/.project")
-            classpath_file = Path(f"{student_repo_local}/.classpath")
-            src_dir = Path(f"{student_repo_local}/src")
+            project_file = Path(f"{student_repo_local}/.project")       # should always be top-level
+            classpath_file = Path(f"{student_repo_local}/.classpath")   # should always be top-level
+            src_dir = Path(f"{find_src_dir(student_repo_local)}")       # because how checking if src is elsewhere than top level
 
             # record project state
             project_state = {
                 project_file.name: project_file.exists(),
                 classpath_file.name: classpath_file.exists(),
-                src_dir.name: src_dir.exists()
+                src_dir.name: False if src_dir.name == "" else True
             }
 
             # determine what is missing
