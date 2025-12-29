@@ -168,14 +168,14 @@ def is_valid_classpath_file(classpath_file):
             type_of_entry = tag.get("kind")
 
             if type_of_entry == "lib":
-                print(f"bad .classpath file: classpathentry tag with attribute and value as kind={type_of_entry}")
+                print(f"bad .classpath file: classpathentry tag with attribute and value as kind=lib")
                 return False
 
             elif type_of_entry == "src":
                 path_to_src = tag.get("path")
                 # only case encountered of bad src pointer
                 if path_to_src == "":
-                    print(f"bad .classpath file: classpathentry tag with attribute and value as path={path_to_src}")
+                    print(f"bad .classpath file: classpathentry tag with attribute and value as path=''")
                     return False
 
         return True
@@ -203,7 +203,7 @@ def is_valid_project_file(project_file):
         # .// tells the XML parser to search recursively for tag (called an XPath)
         # to avoid warnings must compare to None instead of checking truthy or falsy
         if root.find(".//buildCommand") is None or root.find(".//nature") is None:
-            print("inappropriate .project file")
+            print("bad .project file: missing buildCommand tag or nature tag")
             return False
 
         return True
@@ -221,10 +221,10 @@ def find_src_dir(student_repo_local):
     """
     # search for first instance of src dir in student repo
     # if one exists will print path to stdout, otherwise prints nothing
-    status = sp.run(["find", student_repo_local, "-type", "d", "-name" "src", "-print", "-quit"],
+    status = sp.run(["find", student_repo_local, "-type", "d", "-name", "src", "-print", "-quit"],
                     capture_output=True, text=True)
     if status.returncode != 0:
-        print("failed searching student repo for src dir")
+        print(f"error searching student repo for src dir: {status.returncode}")
 
     return status.stdout
 
@@ -240,7 +240,7 @@ def inject_classpath_file(student_repo_local):
     status = sp.run(['cp', CLASSPATH_FILE, new_classpath_file])
 
     if status.returncode != 0:
-        print("failed injecting .classpath file")
+        print(f"error injecting .classpath file: {status.returncode}")
 
     print("injecting a .classpath file into student repo")
 
@@ -255,7 +255,7 @@ def inject_project_file(student_repo_local):
     status = sp.run(['cp', PROJECT_FILE, new_project_file])
 
     if status.returncode != 0:
-        print("failed injecting .project file")
+        print(f"error injecting .project file {status.returncode}")
 
     print("injecting a .project file into student repo")
 
@@ -271,10 +271,10 @@ def create_src_dir(student_repo_local):
     new_src_dir = f"{student_repo_local}/src"
     status = sp.run(['mkdir', new_src_dir])
     if status.returncode != 0:
-        print("failed creating src directory")
+        print(f"error creating src directory: {status.returncode}")
         return
 
-    print("created a src folder")
+    print("created a src directory")
 
     # find all the .java files in their repo
     # stdout will be the full paths from the target dir
@@ -283,10 +283,11 @@ def create_src_dir(student_repo_local):
 
     # TODO: main file usually doesnt have a package declaration. Currently getting left out of src
 
-    packages = []   # keep a running list so don't duplicate packages
+    packages = []       # keep a running list so don't duplicate packages
     # check if any .java files declare packages
     for file in java_files:
         file_lines = open(file).readlines()
+        has_package = False
 
         for line in file_lines:
             # avoid comment lines
@@ -295,6 +296,7 @@ def create_src_dir(student_repo_local):
 
             # found package declaration
             if line.find("package") != -1:
+                has_package = True
                 package_name = line.split(" ")[1].strip().rstrip(";")    # get word after 'package' and remove semicolon
                 new_package_dir = f"{new_src_dir}/{package_name}"
 
@@ -302,7 +304,7 @@ def create_src_dir(student_repo_local):
                 if package_name in packages:
                     status = sp.run(["mv", file, f"{new_package_dir}"])
                     if status.returncode != 0:
-                        print(f"failed moving {file} to {new_package_dir}")
+                        print(f"error moving {file} to {new_package_dir}: {status.returncode}")
 
                     break
 
@@ -311,14 +313,19 @@ def create_src_dir(student_repo_local):
                 # create package in src
                 status = sp.run(["mkdir", new_package_dir])
                 if status.returncode != 0:
-                    print(f"failed creating package {new_package_dir}")
+                    print(f"error creating package {new_package_dir}: {status.returncode}")
 
                 # move .java file to its respective package
                 status = sp.run(["mv", file, new_package_dir])
                 if status.returncode != 0:
-                    print(f"failed moving {file} to {new_package_dir}")
+                    print(f"error moving {file} to {new_package_dir}: {status.returncode}")
 
                 break
+
+        if not has_package:
+            status = sp.run(["mv", file, new_src_dir])
+            if status.returncode != 0:
+                print(f"error moving {file} to {new_src_dir}: {status.returncode}")
 
     return new_src_dir
 
@@ -387,13 +394,13 @@ def main():
             # define vital project contents
             project_file = Path(f"{student_repo_local}/.project")       # should always be top-level
             classpath_file = Path(f"{student_repo_local}/.classpath")   # should always be top-level
-            src_dir = Path(f"{find_src_dir(student_repo_local)}")       # because how checking if src is elsewhere than top level
+            src_dir = Path(f"{find_src_dir(student_repo_local)}")       # because how checking if src is not top level
 
             # record project state
             project_state = {
-                project_file.name: project_file.exists(),
-                classpath_file.name: classpath_file.exists(),
-                src_dir.name: False if src_dir.name == "" else True
+                "project file": project_file.exists(),
+                "classpath file": classpath_file.exists(),
+                "src dir": src_dir.name != ""
             }
 
             # determine what is missing
@@ -405,21 +412,20 @@ def main():
             if 0 < len(missing_content) < len(project_state):
                 print(missing_statement)
                 for item_name in project_state:
+                    # is missing
                     if item_name in missing_content:
-                        if item_name == project_file.name:
+                        if item_name == "project file":
                             inject_project_file(student_repo_local)
-                        elif item_name == classpath_file.name:
+                        elif item_name == "classpath file":
                             inject_classpath_file(student_repo_local)
-                        elif item_name == src_dir.name:
+                        elif item_name == "src dir":
                             create_src_dir(student_repo_local)
+                    # not missing, but still need to check if okay
                     else:
-                        if item_name == project_file.name and not is_valid_project_file(project_file):
+                        if item_name == "project file" and not is_valid_project_file(project_file):
                             inject_project_file(student_repo_local)
-                        elif item_name == classpath_file.name and not is_valid_classpath_file(classpath_file):
+                        elif item_name == "classpath file" and not is_valid_classpath_file(classpath_file):
                             inject_classpath_file(student_repo_local)
-                        elif item_name == src_dir.name:
-                            if not src_dir.exists():
-                                create_src_dir(student_repo_local)
             # missing all minimum requirements
             elif len(missing_content) == len(project_state):
                 print(missing_statement)
@@ -432,7 +438,7 @@ def main():
                     inject_project_file(student_repo_local)
                 if not is_valid_classpath_file(classpath_file):
                     inject_classpath_file(student_repo_local)
-                if not src_dir.exists():
+                if src_dir.name == "":
                     create_src_dir(student_repo_local)
 
             # always executed after checking .project, so we know it's parsable by the time reach here
