@@ -2,7 +2,7 @@
 
 Look how far we've come. What was once meant to be just a minor script to slightly speed up grading, has now grown into a decent project and learning experience. 
 
-The initial goal was to automate the cloning of student repositories containing Eclipse projects to your local machine. Simple enough, given we had student GitHub usernames and the organization name. But of course, other issues arose, and with them, ideas of quality-of-life features.
+The initial goal was to automate the cloning of student repositories containing Eclipse projects to a local machine. Simple enough, given we had student GitHub usernames and the organization name. But of course, other issues arose, and with them, ideas of quality-of-life features.
 
 ---
 

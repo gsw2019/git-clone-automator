@@ -37,8 +37,8 @@ import argparse
 # path of .csv file that contains student GitHub usernames
 # expected format: student, username
 # USERNAMES = "student_github_usernames.csv"
-# USERNAMES = "proj5_student_github_usernames.csv"
-USERNAMES = "proj6_student_github_usernames.csv"
+USERNAMES = "proj5_student_github_usernames.csv"
+# USERNAMES = "proj6_student_github_usernames.csv"
 
 # path to destination for storing repos
 TARGET_DIR = "student_repos"
@@ -76,6 +76,7 @@ def is_valid_date(date):
     """Ensures the deadline date provided by the user is in ISO 8601 format and the
     date is within the semester range
 
+    :param date: string of a date from CL args
     :return: boolean
     """
     # check datetime can be parsed
@@ -88,7 +89,7 @@ def is_valid_date(date):
 
 
 def build_base_url(args):
-    """String building the URL that will be used to clone each repository.
+    """String builds the URL that will be used to clone each repository.
 
     :param args: a namespace object with attributes defined from command line args
     :return: a string URL
@@ -128,76 +129,29 @@ def get_names_usernames(names_usernames_file):
     return names_usernames
 
 
-def rename_project(project_file, repo_name):
-    """Renames the students Eclipse project to their repo name. Edits the .project file
-    using XML parser package
+def is_valid_classpath_file(classpath_file):
+    """Ensures the .classpath file has a minimum working format
 
-    :return: None
+    :param classpath_file: path to the .classpath file
+    :return: True if .classpath is okay, False otherwise
     """
-    # use XML parsing and editing tool (.project is XML)
-    # should only rename after checking project file. Don't need try-except here
-    tree = ET.parse(project_file)
-    root = tree.getroot()
-    # change <name> tag, first instance is project name
-    name_tag = root.find("name")
-    name_tag.text = repo_name
-    tree.write(project_file, encoding="UTF-8", xml_declaration=True)
-    print(f"successfully renamed project to {repo_name}")
+    try:
+        tree = ET.parse(classpath_file)
+        root = tree.getroot()
 
+        # loop over all <classpathentry> tags and look for known issue attributes
+        for tag in root.findall("classpathentry"):
+            type_of_entry = tag.get("kind")
 
-def inject_project_file(student_repo_local):
-    """Injects a basic .project file into student repo. Name tag is blank
+            if type_of_entry == "lib":
+                print(f"bad .classpath file: classpathentry tag with attribute and value as kind=lib")
+                return False
 
-    :return: None
-    """
-    new_project_file = f"{student_repo_local}/.project"
-    status = sp.run(['cp', PROJECT_FILE, new_project_file])
+        return True
 
-    if status.returncode == 0:
-        print("injecting a .project file into student repo")
-    else:
-        print("failed injecting .project file")
-
-
-def inject_classpath_file(student_repo_local):
-    """Injects a basic .classpath file into student repo. the file is configured to looks for local
-    machines JRE and Junit5 library
-
-    :return: None
-    """
-    new_classpath_file = f"{student_repo_local}/.classpath"
-    status = sp.run(['cp', CLASSPATH_FILE, new_classpath_file])
-
-    if status.returncode == 0:
-        print("injecting a .classpath file into student repo")
-    else:
-        print("failed injecting .classpath file")
-
-
-def create_src_dir(student_repo_local):
-    """If src folder doesn't exist, creates a src folder in students repo and moves all .java files to it
-
-    # TODO: if rebuild and make a src file, check for package declarations in .java files and build them too
-
-    :return: None
-    """
-    # create the src folder in students repo
-    new_src_folder = f"{student_repo_local}/src"
-    status = sp.run(['mkdir', new_src_folder])
-
-    if status.returncode == 0:
-        # find all the .java files in their repo
-        # stdout will be the paths
-        java_files = sp.run(["find", student_repo_local, "-name", "*.java"],
-                            capture_output=True, text=True, check=True)
-
-        # move each .java file to src folder
-        for java_file in java_files.stdout.splitlines():
-            sp.run(["mv", java_file, new_src_folder], check=True)
-
-        print("created a src folder")
-    else:
-        print("failed creating src directory")
+    except ET.ParseError as e:
+        print(f"could not parse .classpath file. {e.msg.capitalize()}")
+        return False
 
 
 def is_valid_project_file(project_file):
@@ -208,6 +162,7 @@ def is_valid_project_file(project_file):
         - has <natures> tag, but is missing child <nature>
         - has git merge conflict remnants thus the ElementTree parser fails
 
+    :param project_file: path to the .project file
     :return: True if .project is okay, False otherwise
     """
     try:
@@ -216,8 +171,11 @@ def is_valid_project_file(project_file):
 
         # .// tells the XML parser to search recursively for tag (called an XPath)
         # to avoid warnings must compare to None instead of checking truthy or falsy
-        if root.find(".//buildCommand") is None or root.find(".//nature") is None:
-            print("inappropriate .project file")
+        if root.find(".//buildCommand") is None:
+            print("bad .project file: missing buildCommand tag")
+            return False
+        if root.find(".//nature") is None:
+            print("bad .project file: missing nature tag")
             return False
 
         return True
@@ -227,31 +185,172 @@ def is_valid_project_file(project_file):
         return False
 
 
-def is_valid_classpath_file(classpath_file):
-    """Ensures the .classpath file has a minimum working format
+def find_src_dir(student_repo_local):
+    """Checks if the project has a src folder. Isn't required to be top-level
 
-    observed issues:
-        - many <classpathentry> tags with a kind="lib" attribute. Seems not using user libraries
-        - has git merge conflict remnants thus the ElementTree parser fails
-
-    :return: True if .classpath is okay, False otherwise
+    :param student_repo_local: Path object, local path to student repo
+    :return: string of the src dir local path
     """
-    try:
-        tree = ET.parse(classpath_file)
-        root = tree.getroot()
+    # search for first instance of src dir in student repo
+    # if one exists will print path to stdout, otherwise prints nothing
+    status = sp.run(["find", student_repo_local, "-type", "d", "-name", "src", "-print", "-quit"],
+                    capture_output=True, text=True)
+    if status.returncode != 0:
+        print(f"error searching student repo for src dir: {status.returncode}")
 
-        # loop over all <classpathentry> tags and look for kind="lib" attribute
-        for tag in root.findall("classpathentry"):
-            for attribute, value in tag.attrib.items():
-                if attribute == "kind" and value == "lib":
-                    print("inappropriate .classpath file")
-                    return False
+    # want the src dir path from the project entry point
+    if status.stdout != "":
+        src_path = status.stdout
+        repo_name = student_repo_local.name
+        path_from_project = src_path.split(repo_name)[1].lstrip("/").strip()
+        return path_from_project
 
-        return True
+    return status.stdout
 
-    except ET.ParseError as e:
-        print(f"could not parse .classpath file. {e.msg.capitalize()}")
-        return False
+
+def inject_classpath_file(student_repo_local, src_dir="src"):
+    """Injects a basic .classpath file into student repo. the file is configured to looks for local
+    machines JRE and Junit5 library
+
+    :param src_dir: the path from repo root of an existing src dir
+    :param student_repo_local: Path object, local path to student repo
+    :return: None
+    """
+    new_classpath_file = f"{student_repo_local}/.classpath"
+
+    status = sp.run(['cp', CLASSPATH_FILE, new_classpath_file])
+    if status.returncode != 0:
+        print(f"error injecting .classpath file: {status.returncode}")
+
+    if src_dir != "src":
+        set_classpath_src(new_classpath_file, src_dir)
+
+    print("injecting a .classpath file into student repo")
+
+
+def set_classpath_src(classpath_file, src):
+    """Set the path to src files from .classpath file. Only call when injecting basic
+    .classpath
+
+    :param classpath_file: .classpath file in student repo
+    :param src: path from repo root to src files
+    :return: None
+    """
+    tree = ET.parse(classpath_file)
+    root = tree.getroot()
+
+    for tag in root.findall("classpathentry"):
+        type_of_entry = tag.get("kind")
+
+        if type_of_entry == "src":
+            tag.set("path", src)
+            break
+
+    tree.write(classpath_file, encoding="UTF-8", xml_declaration=True)
+
+
+def inject_project_file(student_repo_local):
+    """Injects a basic .project file into student repo. Name tag is blank
+
+    :param student_repo_local: Path object, local path to student repo
+    :return: None
+    """
+    new_project_file = f"{student_repo_local}/.project"
+    status = sp.run(['cp', PROJECT_FILE, new_project_file])
+
+    if status.returncode != 0:
+        print(f"error injecting .project file {status.returncode}")
+
+    print("injecting a .project file into student repo")
+
+
+def rename_project(project_file, repo_name):
+    """Renames the students Eclipse project to their repo name. Edits the .project file
+    using XML parser package
+
+    :param project_file: path to the .project file
+    :param repo_name: name of the local repo
+    :return: None
+    """
+    # use XML parsing and editing tool (.project is XML)
+    # Only rename after checking project file. Don't need try-except for parsing here
+    tree = ET.parse(project_file)
+    root = tree.getroot()
+    # change <name> tag, first instance is project name
+    name_tag = root.find("name")
+    name_tag.text = repo_name
+    tree.write(project_file, encoding="UTF-8", xml_declaration=True)
+    print(f"successfully renamed project to {repo_name}")
+
+
+def create_src_dir(student_repo_local):
+    """If src directory doesn't exist, creates a src directory in students repo with all packages and
+    puts .java files in their respective packages
+
+    :param student_repo_local: Path object, local path to student repo
+    :return: path to new local src dir
+    """
+    # create the src dir in students repo
+    new_src_dir = f"{student_repo_local}/src"
+    status = sp.run(['mkdir', new_src_dir])
+    if status.returncode != 0:
+        print(f"error creating src directory: {status.returncode}")
+        return
+
+    print("created a src directory")
+
+    # find all the .java files in their repo
+    # stdout will be the full paths from the target dir
+    java_files = sp.run(["find", student_repo_local, "-name", "*.java"],
+                        capture_output=True, text=True, check=True).stdout.splitlines()
+
+    # TODO: main file usually doesnt have a package declaration. Currently getting left out of src
+
+    packages = []       # keep a running list so don't duplicate packages
+    # check if any .java files declare packages
+    for file in java_files:
+        file_lines = open(file).readlines()
+        has_package = False
+
+        for line in file_lines:
+            # avoid comment lines
+            if line.startswith("//") or line.startswith("*") or line.startswith("/*") or line.startswith("/**") or line.startswith("*/"):
+                continue
+
+            # found package declaration
+            if line.find("package") != -1:
+                has_package = True
+                package_name = line.split(" ")[1].strip().rstrip(";")    # get word after 'package' and remove semicolon
+                new_package_dir = f"{new_src_dir}/{package_name}"
+
+                # if its already been created, just add file to it
+                if package_name in packages:
+                    status = sp.run(["mv", file, f"{new_package_dir}"])
+                    if status.returncode != 0:
+                        print(f"error moving {file} to {new_package_dir}: {status.returncode}")
+
+                    break
+
+                packages.append(package_name)
+
+                # create package in src
+                status = sp.run(["mkdir", new_package_dir])
+                if status.returncode != 0:
+                    print(f"error creating package {new_package_dir}: {status.returncode}")
+
+                # move .java file to its respective package
+                status = sp.run(["mv", file, new_package_dir])
+                if status.returncode != 0:
+                    print(f"error moving {file} to {new_package_dir}: {status.returncode}")
+
+                break
+
+        if not has_package:
+            status = sp.run(["mv", file, new_src_dir])
+            if status.returncode != 0:
+                print(f"error moving {file} to {new_src_dir}: {status.returncode}")
+
+    return new_src_dir
 
 
 def main():
@@ -293,7 +392,7 @@ def main():
 
         # clone was successful
         if status.returncode == 0:
-            student_repo_local = f"{TARGET_DIR}/{repo_name}"
+            student_repo_local = Path(f"{TARGET_DIR}/{repo_name}")
 
             if ASGN_DEADLINE is not None:
                 # need to ensure we have the correct default branch name
@@ -313,20 +412,19 @@ def main():
                     text=True).strip()
 
                 print(f"\n\n***CHECKING OUT LAST COMMIT PRIOR TO {ASGN_DEADLINE}***\n\n")
-                sp.run(["git", "-C", student_repo_local, "checkout", commit_hash])
+                status = sp.run(["git", "-C", student_repo_local, "checkout", commit_hash])
+                if status.returncode != 0:
+                    print(f"checkout failed: {status.returncode}")
 
-            # TODO: number of cases that could be associated with project structure. Always room for more robustness
-
-            # define vital project contents
-            project_file = Path(f"{student_repo_local}/.project")
-            classpath_file = Path(f"{student_repo_local}/.classpath")
-            src_dir = Path(f"{student_repo_local}/src")
+            # define expected project contents
+            project_file = Path(f"{student_repo_local}/.project")       # should always be top-level
+            classpath_file = Path(f"{student_repo_local}/.classpath")   # should always be top-level
+            src_dir = find_src_dir(student_repo_local)                  # because how checking if src is not top level
 
             # record project state
             project_state = {
-                project_file.name: project_file.exists(),
-                classpath_file.name: classpath_file.exists(),
-                src_dir.name: src_dir.exists()
+                "project file": project_file.exists(),
+                "classpath file": classpath_file.exists()
             }
 
             # determine what is missing
@@ -338,35 +436,39 @@ def main():
             if 0 < len(missing_content) < len(project_state):
                 print(missing_statement)
                 for item_name in project_state:
+                    # is missing
                     if item_name in missing_content:
-                        if item_name == project_file.name:
+                        if item_name == "project file":
                             inject_project_file(student_repo_local)
-                        elif item_name == classpath_file.name:
-                            inject_classpath_file(student_repo_local)
-                        elif item_name == src_dir.name:
-                            create_src_dir(student_repo_local)
-                    else:
-                        if item_name == project_file.name and not is_valid_project_file(project_file):
-                            inject_project_file(student_repo_local)
-                        elif item_name == classpath_file.name and not is_valid_classpath_file(classpath_file):
-                            inject_classpath_file(student_repo_local)
-                        elif item_name == src_dir.name:
-                            if not src_dir.exists():
+                        elif item_name == "classpath file":
+                            if src_dir != "":
+                                inject_classpath_file(student_repo_local, src_dir=src_dir)
+                            # no .classpath and no src, so must make both
+                            else:
+                                inject_classpath_file(student_repo_local)
                                 create_src_dir(student_repo_local)
+                    # not missing, but still need to check if okay
+                    else:
+                        if item_name == "project file" and not is_valid_project_file(project_file):
+                            inject_project_file(student_repo_local)
+                        elif item_name == "classpath file" and not is_valid_classpath_file(classpath_file):
+                            # no info from .classpath file, but can assume it aligned with whatever src_dir is
+                            inject_classpath_file(student_repo_local, src_dir=src_dir)
             # missing all minimum requirements
             elif len(missing_content) == len(project_state):
                 print(missing_statement)
                 inject_project_file(student_repo_local)
-                inject_classpath_file(student_repo_local)
-                create_src_dir(student_repo_local)
-            # okay project, but still need to look at .classpath and .project and ensure has src dir
+                if src_dir != "":
+                    inject_classpath_file(student_repo_local, src_dir=src_dir)
+                else:
+                    inject_classpath_file(student_repo_local)
+                    create_src_dir(student_repo_local)
+            # okay project, but still need to look at .classpath and .project
             elif len(missing_content) == 0:
                 if not is_valid_project_file(project_file):
                     inject_project_file(student_repo_local)
                 if not is_valid_classpath_file(classpath_file):
-                    inject_classpath_file(student_repo_local)
-                if not src_dir.exists():
-                    create_src_dir(student_repo_local)
+                    inject_classpath_file(student_repo_local, src_dir=src_dir)
 
             # always executed after checking .project, so we know it's parsable by the time reach here
             rename_project(project_file, repo_name)
