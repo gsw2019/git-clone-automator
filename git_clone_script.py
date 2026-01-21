@@ -8,13 +8,14 @@ Requirements:   Assumes a .csv with student names and usernames exists locally.
                 Assumes a .txt with minimal .project requirements exists locally.
                 Assumes a .txt with minimal .classpath requirements exists locally.
                     • points to local machines JRE, JUnit 5, and JavaFX (expected to be user library)
-                User needs to set their user-specific and semester-specific globals.
+                User needs to set their user-specific and semester-specific globals in the .env file.
 
 Bonus Features: Renames student projects to their repo name so can simultaneously import all projects into Eclipse.
                 Ensures project has minimal working structure. If not, adds the needed files and rebuilds the project.
 
 Invocation:     Must provide at least assignment type on command line.
-                Can also provide an assignment number.
+                Can optionally provide an assignment number.
+                Can optionally provide an assignment name.
                 Can optionally provide a deadline date in ISO 8601 format (YYYY-MM-DD)
                 Example:    python3 git_clone_script.py project 1                   ->  most recent commit
                 Example:    python3 git_clone_script.py project 1 -d 2025-09-09     ->  last commit prior to Sept 9th, 2025 12:00 AM
@@ -28,26 +29,29 @@ from datetime import datetime
 from pathlib import Path
 import xml.etree.ElementTree as ET
 import argparse
+from dotenv import dotenv_values
 
 
 # --------------------------------------
 # USER: set user-specific globals
 # --------------------------------------
 
+env_vars = dotenv_values('.env')
+
 # path of .csv file that contains student GitHub usernames
 # expected format: student, username
-# USERNAMES = "student_github_usernames.csv"
-USERNAMES = "proj5_student_github_usernames.csv"
-# USERNAMES = "proj6_student_github_usernames.csv"
+USERNAMES = env_vars.get("USERNAMES")
 
 # path to destination for storing repos
-TARGET_DIR = "student_repos"
+TARGET_DIR = env_vars.get("TARGET_DIR")
 
 # path to basic .project file
-PROJECT_FILE = "project_file.txt"
+PROJECT_FILE = env_vars.get("PROJECT_FILE")
 
 # path to basic .classpath file
-CLASSPATH_FILE = "classpath_file.txt"
+CLASSPATH_FILE = env_vars.get("CLASSPATH_FILE")
+
+ROOT_URL = env_vars.get("ROOT_URL")
 
 
 def get_args():
@@ -58,10 +62,11 @@ def get_args():
     # use library tool to get CL arguments
     # if invoked inappropriately will show a helpful usage message
     parser = argparse.ArgumentParser()
-    parser.add_argument("ASGN_TYPE", type=str)                                  # positional arg
-    parser.add_argument("ASGN_NUMBER", nargs="?", type=int, default=None)       # positional arg
-    parser.add_argument("-d", "--deadline", help="deadline date in ISO 8601")   # optional arg
-    parser.add_argument("-f", "--file", help="path to TA test suite")           # optional arg
+    parser.add_argument("ASGN_TYPE", type=str)                                   # positional arg
+    parser.add_argument("-num", "--number",  type=int, help="assignment number") # optional arg
+    parser.add_argument("-name", "--name", type=str, help="assignment name")     # optional arg
+    parser.add_argument("-d", "--deadline", help="deadline date in ISO 8601")    # optional arg
+    parser.add_argument("-f", "--file", help="path to TA test suite")            # optional arg
     cl_args = parser.parse_args()      # default comes from sys.argv
 
     # check date if provided
@@ -94,14 +99,21 @@ def build_base_url(args):
     :param args: a namespace object with attributes defined from command line args
     :return: a string URL
     """
-    asgn_type = getattr(args, "ASGN_TYPE")
-    asgn_num = getattr(args, "ASGN_NUMBER")
+    asgn_type = getattr(args, "ASGN_TYPE")  # at the least, have this
+    asgn_num = getattr(args, "number")
+    asgn_name = getattr(args, "name")
 
+    # only three cases right now
+    # case
     base_url = ""
-    if asgn_num is None:
-        base_url = f"https://github.com/CSc-335-Fall-2025/{asgn_type}-[USERNAME].git"
-    else:
-        base_url = f"https://github.com/CSc-335-Fall-2025/{asgn_type}-{asgn_num}-[USERNAME].git"
+    if asgn_num is None and asgn_name is None:
+        base_url = f"{ROOT_URL}{asgn_type}-[USERNAME].git"
+    elif asgn_name is None and asgn_num is not None:
+        base_url = f"{ROOT_URL}{asgn_type}-{asgn_num}-[USERNAME].git"
+    elif asgn_name is not None and asgn_num is None:
+        base_url = f"{ROOT_URL}{asgn_type}-{asgn_name}-[USERNAME].git"        # probably not possible? final project?
+    elif asgn_name is not None and asgn_num is not None:
+        base_url = f"{ROOT_URL}{asgn_type}-{asgn_num}-{asgn_name}-[USERNAME].git"
 
     return base_url
 
@@ -358,8 +370,6 @@ def main():
     # Gather info for clones and project renaming
     # --------------------------------------------
     args = get_args()
-    ASGN_TYPE = getattr(args, "ASGN_TYPE")
-    ASGN_NUMBER = getattr(args, "ASGN_NUMBER")
 
     ASGN_DEADLINE = getattr(args, 'deadline')
     if ASGN_DEADLINE is not None:
@@ -380,10 +390,9 @@ def main():
         print("=" * 80)
         result_url = base_url.replace("[USERNAME]", username)
 
-        if ASGN_NUMBER is not None:
-            repo_name = f"{ASGN_TYPE}-{ASGN_NUMBER}-{username}"
-        else:
-            repo_name = f"{ASGN_TYPE}-{username}"
+        repo_start_index = result_url.rfind('/') + 1            # start after base url
+        repo_end_index = result_url.rfind('.')                  # go until .git
+        repo_name = result_url[repo_start_index:repo_end_index]
 
         # clone student repo
         # -C option specifies directory to mimic operating in
