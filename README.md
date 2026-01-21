@@ -61,8 +61,8 @@ The initial goal was to automate the cloning of student repositories containing 
 
 5. **Set environment variables**
 
-       create a .env file in root directory
-       use .env.example as a template
+    - create a .env file in root directory
+    - use .env.example as a template
 
 ### Examples
 
