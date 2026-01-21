@@ -103,8 +103,6 @@ def build_base_url(args):
     asgn_num = getattr(args, "number")
     asgn_name = getattr(args, "name")
 
-    # only three cases right now
-    # case
     base_url = ""
     if asgn_num is None and asgn_name is None:
         base_url = f"{ROOT_URL}{asgn_type}-[USERNAME].git"
@@ -156,13 +154,13 @@ def is_valid_classpath_file(classpath_file):
             type_of_entry = tag.get("kind")
 
             if type_of_entry == "lib":
-                print(f"bad .classpath file: classpathentry tag with attribute and value as kind=lib")
+                print('bad .classpath file: classpathentry tag with attribute and value pair: kind="lib"')
                 return False
 
         return True
 
     except ET.ParseError as e:
-        print(f"could not parse .classpath file. {e.msg.capitalize()}")
+        print(f"could not parse .classpath file: {e.msg.capitalize()}")
         return False
 
 
@@ -292,7 +290,7 @@ def rename_project(project_file, repo_name):
     name_tag = root.find("name")
     name_tag.text = repo_name
     tree.write(project_file, encoding="UTF-8", xml_declaration=True)
-    print(f"successfully renamed project to {repo_name}")
+    print(f"renamed project to {repo_name}")
 
 
 def create_src_dir(student_repo_local):
@@ -436,11 +434,12 @@ def main():
                 "classpath file": classpath_file.exists()
             }
 
+            print("\n\nPROJECT STRUCTURE LOGS: ")
+
             # determine what is missing
             missing_content = [item for item, present in project_state.items() if not present]
             missing_statement = f"project is missing: {", ".join(missing_content)}"
 
-            print("\n")
             # missing some minimal requirements
             if 0 < len(missing_content) < len(project_state):
                 print(missing_statement)
