@@ -18,7 +18,7 @@ The initial goal was to automate the cloning of student repositories containing 
 - ensures the .classpath has minimal working requirements. If not, replaces with a basic template
 
 ### src directory wizard (passive)
-- checks if a src directory exists. If not, creates one and moves all .java files into it
+- checks if a src directory exists. If not, creates one and moves all .java files into it respecting their packages.
 
 ### rename Eclipse project (passive)
 - changes the project name to the students repo name, thus making them all unqiue and able to be imported into Eclipse simultaneously
@@ -36,21 +36,51 @@ The initial goal was to automate the cloning of student repositories containing 
 
 ## Usage
 
-Once this repository has been cloned and the .csv file of names, usernames has been populated, the program is ready to execute. 
+1. **Clone repository and enter it**
 
-**Note:** If any files from the repository were moved or renamed, make sure to update paths for the user-specific globals in the .py file.
+       git clone https://github.com/gsw2019/git-clone-automator.git
+       cd git-clone-automator
+
+2. **Create Python virtual environment**
+
+       python3 -m venv .venv
+
+3. **Activate venv**
+
+   - macOS/Linux:
+   
+         source venv/bin/activate
+
+   - Windows:
+
+         venv\Scripts\activate
+
+4. **Install dependencies** (currently only 2):
+
+       pip install -r requirements.txt
+
+5. **Set environment variables**
+
+       create a .env file in root directory
+       use .env.example as a template
+
+### Examples
 
 Most recent commit:
 
-`python3 git_clone_script.py project 1`
+`python3 git_clone_script.py project -num 1`
 
 Last commit prior to Sept 9th, 2025 12:00 AM: 
 
-`python3 git_clone_script.py project 1 -d 2025-09-09`
+`python3 git_clone_script.py project -num 1 -d 2025-09-09`
 
-Last commit prior to Sept 21st, 2025 12:00 AM:
+last commit prior to Jan 27th, 2026 12:00 AM:
 
-`python3 git_clone_script.py lab 2 --deadline 2025-09-21`
+`python3 git_clone_script.py project -num 1 -name mastermind -d 2026-01-27`
+
+last commit prior to Jan 24th, 2026 12:00 AM:
+
+`python3 git_clone_script.py lab -num 1 -d 2026-01-24`
 
 Last commit prior to Dec 9th, 2025 12:00AM:
 

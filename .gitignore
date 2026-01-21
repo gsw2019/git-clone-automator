@@ -16,6 +16,7 @@ __pycache__/
 env/
 venv/
 .venv/
+.env
 
 # Testing / coverage
 .pytest_cache/
@@ -27,3 +28,15 @@ htmlcov/
 
 # Logs
 *.log
+
+# scratch
+scratch.py
+
+# student data
+student_github_usernames.csv
+proj5_student_github_usernames.csv
+proj6_student_github_usernames.csv
+students_test.csv
+
+# environemnt cleaner
+makefile

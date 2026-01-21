@@ -1,14 +1,13 @@
 """
 @author         Garret Wilson
 
-Description:    Automates the process of cloning student Git repos to local machine.
+Description:    Automates the process of cloning student GitHub repos to local machine.
 
-Requirements:   Assumes a .csv with student names and usernames exists locally.
+Requirements:   a .csv with student names and usernames is set in .env file.
                     • with header line
-                Assumes a .txt with minimal .project requirements exists locally.
-                Assumes a .txt with minimal .classpath requirements exists locally.
-                    • points to local machines JRE, JUnit 5, and JavaFX (expected to be user library)
-                User needs to set their user-specific and semester-specific globals in the .env file.
+                a target directory to store repos is set in .env file
+                a .txt with minimal .project requirements is set in .enf file.
+                a .txt with minimal .classpath requirements is set in .env file.
 
 Bonus Features: Renames student projects to their repo name so can simultaneously import all projects into Eclipse.
                 Ensures project has minimal working structure. If not, adds the needed files and rebuilds the project.
@@ -17,10 +16,11 @@ Invocation:     Must provide at least assignment type on command line.
                 Can optionally provide an assignment number.
                 Can optionally provide an assignment name.
                 Can optionally provide a deadline date in ISO 8601 format (YYYY-MM-DD)
-                Example:    python3 git_clone_script.py project 1                   ->  most recent commit
-                Example:    python3 git_clone_script.py project 1 -d 2025-09-09     ->  last commit prior to Sept 9th, 2025 12:00 AM
-                Example:    python3 git_clone_script.py lab 2 -d 2025-09-21         ->  last commit prior to Sept 21st, 2025 12:00 AM
-                Example:    python3 git_clone_script.py BoardGames -d 2025-12-09    ->  last commit prior to Dec 9th, 2025 12:00AM
+                Example:    python3 git_clone_script.py project -num 1                                  ->  most recent commit
+                Example:    python3 git_clone_script.py project -num 1 -d 2025-09-09                    ->  last commit prior to Sept 9th, 2025 12:00 AM
+                Example:    python3 git_clone_script.py project -num 1 -name mastermind -d 2026-01-27   ->  last commit prior to Jan 27th, 2026 12:00 AM
+                Example:    python3 git_clone_script.py lab -num 1 -d 2026-01-24                        ->  last commit prior to Jan 24th, 2026 12:00 AM
+                Example:    python3 git_clone_script.py BoardGames -d 2025-12-09                        ->  last commit prior to Dec 9th, 2025 12:00AM
 """
 
 
@@ -310,11 +310,9 @@ def create_src_dir(student_repo_local):
     print("created a src directory")
 
     # find all the .java files in their repo
-    # stdout will be the full paths from the target dir
+    # stdout will be the paths from the target dir
     java_files = sp.run(["find", student_repo_local, "-name", "*.java"],
                         capture_output=True, text=True, check=True).stdout.splitlines()
-
-    # TODO: main file usually doesnt have a package declaration. Currently getting left out of src
 
     packages = []       # keep a running list so don't duplicate packages
     # check if any .java files declare packages
