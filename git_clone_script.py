@@ -3,19 +3,16 @@
 
 Description:    Automates the process of cloning student GitHub repos to local machine.
 
-Requirements:   a .csv with student names and usernames is set in .env file.
-                    • with header line
-                a target directory to store repos is set in .env file
-                a .txt with minimal .project requirements is set in .enf file.
-                a .txt with minimal .classpath requirements is set in .env file.
+Requirements:   create a .env file following the template in .env.example
+                install dependencies in requirements.txt
 
 Bonus Features: Renames student projects to their repo name so can simultaneously import all projects into Eclipse.
-                Ensures project has minimal working structure. If not, adds the needed files and rebuilds the project.
+                Ensures project has minimal working structure. If not, fixes issues and rebuilds the project.
 
 Invocation:     Must provide at least assignment type on command line.
                 Can optionally provide an assignment number.
                 Can optionally provide an assignment name.
-                Can optionally provide a deadline date in ISO 8601 format (YYYY-MM-DD)
+                Can optionally provide an assignment  deadline date in ISO 8601 format (YYYY-MM-DD)
                 Example:    python3 git_clone_script.py project -num 1                                  ->  most recent commit
                 Example:    python3 git_clone_script.py project -num 1 -d 2025-09-09                    ->  last commit prior to Sept 9th, 2025 12:00 AM
                 Example:    python3 git_clone_script.py project -num 1 -name mastermind -d 2026-01-27   ->  last commit prior to Jan 27th, 2026 12:00 AM
@@ -32,28 +29,6 @@ import argparse
 from dotenv import dotenv_values
 
 
-# --------------------------------------
-# USER: set user-specific globals
-# --------------------------------------
-
-env_vars = dotenv_values('.env')
-
-# path of .csv file that contains student GitHub usernames
-# expected format: student, username
-USERNAMES = env_vars.get("USERNAMES")
-
-# path to destination for storing repos
-TARGET_DIR = env_vars.get("TARGET_DIR")
-
-# path to basic .project file
-PROJECT_FILE = env_vars.get("PROJECT_FILE")
-
-# path to basic .classpath file
-CLASSPATH_FILE = env_vars.get("CLASSPATH_FILE")
-
-ROOT_URL = env_vars.get("ROOT_URL")
-
-
 def get_args():
     """Ensures the user has minimal required arguments and they adhere to expected types
 
@@ -62,15 +37,16 @@ def get_args():
     # use library tool to get CL arguments
     # if invoked inappropriately will show a helpful usage message
     parser = argparse.ArgumentParser()
-    parser.add_argument("ASGN_TYPE", type=str)                                   # positional arg
-    parser.add_argument("-num", "--number",  type=int, help="assignment number") # optional arg
-    parser.add_argument("-name", "--name", type=str, help="assignment name")     # optional arg
-    parser.add_argument("-d", "--deadline", help="deadline date in ISO 8601")    # optional arg
-    parser.add_argument("-f", "--file", help="path to TA test suite")            # optional arg
+    parser.add_argument("ASGN_TYPE", type=str)                                                       # positional arg
+    parser.add_argument("-num", "--number", dest="ASGN_NUM", type=int, help="assignment number")     # optional arg
+    parser.add_argument("-name", "--name", dest="ASGN_NAME", type=str, help="assignment name")       # optional arg
+    parser.add_argument("-d", "--deadline", dest="ASGN_DEADLINE", help="deadline date in ISO 8601")  # optional arg
+    parser.add_argument("-f", "--file", dest="ASGN_TESTS", help="path to TA test suite")             # optional arg
+
     cl_args = parser.parse_args()      # default comes from sys.argv
 
     # check date if provided
-    if getattr(cl_args, "deadline") is not None and not is_valid_date(getattr(cl_args, "deadline")):
+    if getattr(cl_args, "ASGN_DEADLINE") is not None and not is_valid_date(getattr(cl_args, "ASGN_DEADLINE")):
         print(parser.print_help())
         exit(1)
 
@@ -93,25 +69,30 @@ def is_valid_date(date):
         return False
 
 
-def build_base_url(args):
+def build_base_url(args, root_url):
     """String builds the URL that will be used to clone each repository.
 
     :param args: a namespace object with attributes defined from command line args
+    :param root_url: the prefix url for the organization
     :return: a string URL
     """
     asgn_type = getattr(args, "ASGN_TYPE")  # at the least, have this
-    asgn_num = getattr(args, "number")
-    asgn_name = getattr(args, "name")
+    asgn_num = getattr(args, "ASGN_NUM")
+    asgn_name = getattr(args, "ASGN_NAME")
+
+    # fill asgn name with dashes if it has spaces? Dashes seem to be GitHub standard. Potential case
+    if asgn_name:
+        asgn_name = asgn_name.replace(" ", "-")
 
     base_url = ""
     if asgn_num is None and asgn_name is None:
-        base_url = f"{ROOT_URL}{asgn_type}-[USERNAME].git"
+        base_url = f"{root_url}{asgn_type}-[USERNAME].git"
     elif asgn_name is None and asgn_num is not None:
-        base_url = f"{ROOT_URL}{asgn_type}-{asgn_num}-[USERNAME].git"
+        base_url = f"{root_url}{asgn_type}-{asgn_num}-[USERNAME].git"
     elif asgn_name is not None and asgn_num is None:
-        base_url = f"{ROOT_URL}{asgn_type}-{asgn_name}-[USERNAME].git"        # probably not possible? final project?
+        base_url = f"{root_url}{asgn_type}-{asgn_name}-[USERNAME].git"        # probably not possible? final project?
     elif asgn_name is not None and asgn_num is not None:
-        base_url = f"{ROOT_URL}{asgn_type}-{asgn_num}-{asgn_name}-[USERNAME].git"
+        base_url = f"{root_url}{asgn_type}-{asgn_num}-{asgn_name}-[USERNAME].git"
 
     return base_url
 
@@ -198,7 +179,7 @@ def is_valid_project_file(project_file):
 def find_src_dir(student_repo_local):
     """Checks if the project has a src folder. Isn't required to be top-level
 
-    :param student_repo_local: Path object, local path to student repo
+    :param student_repo_local: Path object, path to student repo from target dir
     :return: string of the src dir local path
     """
     # search for first instance of src dir in student repo
@@ -218,17 +199,18 @@ def find_src_dir(student_repo_local):
     return status.stdout
 
 
-def inject_classpath_file(student_repo_local, src_dir="src"):
+def inject_classpath_file(student_repo_local, default_classpath_file, src_dir="src"):
     """Injects a basic .classpath file into student repo. the file is configured to looks for local
     machines JRE and Junit5 library
 
-    :param src_dir: the path from repo root of an existing src dir
     :param student_repo_local: Path object, local path to student repo
+    :param default_classpath_file: path to default .classpath file
+    :param src_dir: the path from repo root of an existing src dir. Defaults to src if not set
     :return: None
     """
     new_classpath_file = f"{student_repo_local}/.classpath"
 
-    status = sp.run(['cp', CLASSPATH_FILE, new_classpath_file])
+    status = sp.run(['cp', default_classpath_file, new_classpath_file])
     if status.returncode != 0:
         print(f"error injecting .classpath file: {status.returncode}")
 
@@ -239,7 +221,7 @@ def inject_classpath_file(student_repo_local, src_dir="src"):
 
 
 def set_classpath_src(classpath_file, src):
-    """Set the path to src files from .classpath file. Only call when injecting basic
+    """Set the path to src files from .classpath file. Only called when injecting basic
     .classpath
 
     :param classpath_file: .classpath file in student repo
@@ -259,14 +241,32 @@ def set_classpath_src(classpath_file, src):
     tree.write(classpath_file, encoding="UTF-8", xml_declaration=True)
 
 
-def inject_project_file(student_repo_local):
+def get_classpath_src(classpath_file):
+    """Get the path declared in .classpath that supposedly points to src files. Only called
+    after known to be parsable
+
+    :param classpath_file: .classpath file in student repo
+    :return: path to src files found in .classpath
+    """
+    tree = ET.parse(classpath_file)
+    root = tree.getroot()
+
+    for tag in root.findall("classpathentry"):
+        type_of_entry = tag.get("kind")
+
+        if type_of_entry == "src":
+            return tag.get("path")
+
+
+def inject_project_file(student_repo_local, default_project_file):
     """Injects a basic .project file into student repo. Name tag is blank
 
     :param student_repo_local: Path object, local path to student repo
+    :param default_project_file: path to default .project file
     :return: None
     """
     new_project_file = f"{student_repo_local}/.project"
-    status = sp.run(['cp', PROJECT_FILE, new_project_file])
+    status = sp.run(['cp', default_project_file, new_project_file])
 
     if status.returncode != 0:
         print(f"error injecting .project file {status.returncode}")
@@ -294,8 +294,8 @@ def rename_project(project_file, repo_name):
 
 
 def create_src_dir(student_repo_local):
-    """If src directory doesn't exist, creates a src directory in students repo with all packages and
-    puts .java files in their respective packages
+    """If src directory doesn't exist, creates a src directory in students repo at the top level with all
+    packages and puts .java files in their respective packages
 
     :param student_repo_local: Path object, local path to student repo
     :return: path to new local src dir
@@ -362,22 +362,43 @@ def create_src_dir(student_repo_local):
 
 
 def main():
+    # --------------------------------------
+    # set user-specific globals
+    # --------------------------------------
+    env_vars = dotenv_values('.env')
+
+    # path of .csv file that contains student GitHub usernames
+    # expected format: student, username
+    usernames = env_vars.get("USERNAMES")
+
+    # path to destination for storing repos
+    target_dir = env_vars.get("TARGET_DIR")
+
+    # path to basic .project file
+    default_project_file = env_vars.get("PROJECT_FILE")
+
+    # path to basic .classpath file
+    default_classpath_file = env_vars.get("CLASSPATH_FILE")
+
+    root_url = env_vars.get("ROOT_URL")
+
     # --------------------------------------------
-    # Gather info for clones and project renaming
+    # gather info for clones and project renaming
     # --------------------------------------------
     args = get_args()
 
-    ASGN_DEADLINE = getattr(args, 'deadline')
-    if ASGN_DEADLINE is not None:
-        ASGN_DEADLINE = datetime.strptime(ASGN_DEADLINE, "%Y-%m-%d")    # appends 00:00:00 onto the date
+    asgn_deadline = getattr(args, 'ASGN_DEADLINE')
+    if asgn_deadline is not None:
+        asgn_deadline = datetime.strptime(asgn_deadline, "%Y-%m-%d")    # appends 00:00:00 onto the date
 
-    ASGN_TEST = getattr(args, "file")
+    # TODO: implement adding TA test suites if provided
+    asgn_tests = getattr(args, "ASGN_TESTS")
 
-    base_url = build_base_url(args)
-    names_usernames = get_names_usernames(USERNAMES)
+    base_url = build_base_url(args, root_url)
+    names_usernames = get_names_usernames(usernames)
 
     # --------------------------------------------
-    # Begin cloning
+    # begin cloning
     # --------------------------------------------
     total_clones = 0
 
@@ -393,13 +414,13 @@ def main():
         # clone student repo
         # -C option specifies directory to mimic operating in
         # use run() because want to manually check the return code
-        status = sp.run(["git", "-C", TARGET_DIR, "clone", result_url])
+        status = sp.run(["git", "-C", target_dir, "clone", result_url])
 
         # clone was successful
         if status.returncode == 0:
-            student_repo_local = Path(f"{TARGET_DIR}/{repo_name}")
+            student_repo_local = Path(f"{target_dir}/{repo_name}")
 
-            if ASGN_DEADLINE is not None:
+            if asgn_deadline is not None:
                 # need to ensure we have the correct default branch name
                 # stdout should be something like one of these:
                 #   refs/remotes/origin/master
@@ -412,11 +433,11 @@ def main():
                 # key git command: rev-list
                 # should have a commit hash if repo was created, even if no pushes by student
                 commit_hash = sp.check_output(
-                    ["git", "-C", student_repo_local, "rev-list", "-n", "1", f"--before={ASGN_DEADLINE}",
+                    ["git", "-C", student_repo_local, "rev-list", "-n", "1", f"--before={asgn_deadline}",
                      default_branch],
                     text=True).strip()
 
-                print(f"\n\n***CHECKING OUT LAST COMMIT PRIOR TO {ASGN_DEADLINE}***\n\n")
+                print(f"\n\n***CHECKING OUT LAST COMMIT PRIOR TO {asgn_deadline}***\n\n")
                 status = sp.run(["git", "-C", student_repo_local, "checkout", commit_hash])
                 if status.returncode != 0:
                     print(f"checkout failed: {status.returncode}")
@@ -424,18 +445,19 @@ def main():
             # define expected project contents
             project_file = Path(f"{student_repo_local}/.project")       # should always be top-level
             classpath_file = Path(f"{student_repo_local}/.classpath")   # should always be top-level
-            src_dir = find_src_dir(student_repo_local)                  # because how checking if src is not top level
+            src_dir = find_src_dir(student_repo_local)                  # function call because how checking if src is not top level
 
             # record project state
             project_state = {
                 "project file": project_file.exists(),
-                "classpath file": classpath_file.exists()
+                "classpath file": classpath_file.exists(),
+                "src directory": src_dir
             }
 
             print("\n\nPROJECT STRUCTURE LOGS: ")
 
             # determine what is missing
-            missing_content = [item for item, present in project_state.items() if not present]
+            missing_content = [item for item, present in project_state.items() if not present or ""]
             missing_statement = f"project is missing: {", ".join(missing_content)}"
 
             # missing some minimal requirements
@@ -445,36 +467,41 @@ def main():
                     # is missing
                     if item_name in missing_content:
                         if item_name == "project file":
-                            inject_project_file(student_repo_local)
+                            inject_project_file(student_repo_local, default_project_file)
                         elif item_name == "classpath file":
                             if src_dir != "":
-                                inject_classpath_file(student_repo_local, src_dir=src_dir)
+                                inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
                             # no .classpath and no src, so must make both
                             else:
-                                inject_classpath_file(student_repo_local)
+                                inject_classpath_file(student_repo_local, default_classpath_file)
+                        elif item_name == "src directory":
+                            # case where there is no src directory and classpath is set as such. Main class at top level
+                            if is_valid_classpath_file(classpath_file) and get_classpath_src(classpath_file) == "":
+                                pass
+                            else:
                                 create_src_dir(student_repo_local)
                     # not missing, but still need to check if okay
                     else:
                         if item_name == "project file" and not is_valid_project_file(project_file):
-                            inject_project_file(student_repo_local)
+                            inject_project_file(student_repo_local, default_project_file)
                         elif item_name == "classpath file" and not is_valid_classpath_file(classpath_file):
                             # no info from .classpath file, but can assume it aligned with whatever src_dir is
-                            inject_classpath_file(student_repo_local, src_dir=src_dir)
+                            inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
             # missing all minimum requirements
             elif len(missing_content) == len(project_state):
                 print(missing_statement)
-                inject_project_file(student_repo_local)
+                inject_project_file(student_repo_local, default_project_file)
                 if src_dir != "":
-                    inject_classpath_file(student_repo_local, src_dir=src_dir)
+                    inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
                 else:
-                    inject_classpath_file(student_repo_local)
+                    inject_classpath_file(student_repo_local, default_classpath_file)
                     create_src_dir(student_repo_local)
             # okay project, but still need to look at .classpath and .project
             elif len(missing_content) == 0:
                 if not is_valid_project_file(project_file):
-                    inject_project_file(student_repo_local)
+                    inject_project_file(student_repo_local, default_project_file)
                 if not is_valid_classpath_file(classpath_file):
-                    inject_classpath_file(student_repo_local, src_dir=src_dir)
+                    inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
 
             # always executed after checking .project, so we know it's parsable by the time reach here
             rename_project(project_file, repo_name)
@@ -482,11 +509,12 @@ def main():
             total_clones += 1
 
         else:
+            print("\n")
             print(f"student name(s): {name}")
             print(f"student(s) GitHub username: {username}")
 
     print("\n\n" + "=" * 80)
-    print(f"\n{total_clones} student repos were cloned into {TARGET_DIR}\n\n")
+    print(f"\n{total_clones} student repos were cloned into {target_dir}\n\n")
 
 
 if __name__ == "__main__":

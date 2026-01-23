@@ -26,15 +26,17 @@ The initial goal was to automate the cloning of student repositories containing 
 ### informative logs (passive)
 - prints to the console information about each clone and any unsuitable Eclipse project structure
 
+<p>
+<small>*active = user must toggle the feature on CL</small>
+</p>
 
-
-*active = user must toggle the feature on CL
-
-*passive = feature is automatically applied
+<p>
+<small>*passive = feature is automatically applied</small>
+</p>
 
 ---
 
-## Usage
+## Setup
 
 1. **Clone repository and enter it**
 
@@ -49,11 +51,11 @@ The initial goal was to automate the cloning of student repositories containing 
 
    - macOS/Linux:
    
-         source venv/bin/activate
+         source .venv/bin/activate
 
    - Windows:
 
-         venv\Scripts\activate
+         .venv\Scripts\activate
 
 4. **Install dependencies** (currently only 2):
 
@@ -63,6 +65,15 @@ The initial goal was to automate the cloning of student repositories containing 
 
     - create a .env file in root directory
     - use .env.example as a template
+
+---
+
+## Usage
+
+### Invocation
+
+`python3 git_clone_script.py [-h] [-num ASGN_NUM] [-name ASGN_NAME] [-d ASGN_DEADLINE] [-f ASGN_TESTS] ASGN_TYPE
+`
 
 ### Examples
 
