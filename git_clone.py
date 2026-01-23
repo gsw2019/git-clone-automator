@@ -13,11 +13,11 @@ Invocation:     Must provide at least assignment type on command line.
                 Can optionally provide an assignment number.
                 Can optionally provide an assignment name.
                 Can optionally provide an assignment  deadline date in ISO 8601 format (YYYY-MM-DD)
-                Example:    python3 git_clone_script.py project -num 1                                  ->  most recent commit
-                Example:    python3 git_clone_script.py project -num 1 -d 2025-09-09                    ->  last commit prior to Sept 9th, 2025 12:00 AM
-                Example:    python3 git_clone_script.py project -num 1 -name mastermind -d 2026-01-27   ->  last commit prior to Jan 27th, 2026 12:00 AM
-                Example:    python3 git_clone_script.py lab -num 1 -d 2026-01-24                        ->  last commit prior to Jan 24th, 2026 12:00 AM
-                Example:    python3 git_clone_script.py BoardGames -d 2025-12-09                        ->  last commit prior to Dec 9th, 2025 12:00AM
+                Example:    python3 git_clone.py project -num 1                                  ->  most recent commit
+                Example:    python3 git_clone.py project -num 1 -d 2025-09-09                    ->  last commit prior to Sept 9th, 2025 12:00 AM
+                Example:    python3 git_clone.py project -num 1 -name mastermind -d 2026-01-27   ->  last commit prior to Jan 27th, 2026 12:00 AM
+                Example:    python3 git_clone.py lab -num 1 -d 2026-01-24                        ->  last commit prior to Jan 24th, 2026 12:00 AM
+                Example:    python3 git_clone.py BoardGames -d 2025-12-09                        ->  last commit prior to Dec 9th, 2025 12:00AM
 """
 
 
