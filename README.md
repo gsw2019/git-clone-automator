@@ -93,7 +93,7 @@ last commit prior to Jan 24th, 2026 12:00 AM:
 
 `python3 git_clone.py lab -num 1 -d 2026-01-24`
 
-Last commit prior to Dec 9th, 2025 12:00AM:
+Last commit prior to Dec 9th, 2025 12:00 AM:
 
 `python3 git_clone.py BoardGames -d 2025-12-09`
 
