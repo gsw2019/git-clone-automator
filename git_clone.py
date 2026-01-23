@@ -1,10 +1,10 @@
 """
 @author         Garret Wilson
 
-Description:    Automates the process of cloning student GitHub repos to local machine.
+Description:    Automates the process of cloning student GitHub repos with Eclipse projects to local machine.
 
-Requirements:   create a .env file following the template in .env.example
-                install dependencies in requirements.txt
+Requirements:   Create a .env file following the template in .env.example
+                Install dependencies in requirements.txt
 
 Bonus Features: Renames student projects to their repo name so can simultaneously import all projects into Eclipse.
                 Ensures project has minimal working structure. If not, fixes issues and rebuilds the project.
@@ -12,12 +12,12 @@ Bonus Features: Renames student projects to their repo name so can simultaneousl
 Invocation:     Must provide at least assignment type on command line.
                 Can optionally provide an assignment number.
                 Can optionally provide an assignment name.
-                Can optionally provide an assignment  deadline date in ISO 8601 format (YYYY-MM-DD)
+                Can optionally provide an assignment deadline date in ISO 8601 format (YYYY-MM-DD).
                 Example:    python3 git_clone.py project -num 1                                  ->  most recent commit
                 Example:    python3 git_clone.py project -num 1 -d 2025-09-09                    ->  last commit prior to Sept 9th, 2025 12:00 AM
                 Example:    python3 git_clone.py project -num 1 -name mastermind -d 2026-01-27   ->  last commit prior to Jan 27th, 2026 12:00 AM
                 Example:    python3 git_clone.py lab -num 1 -d 2026-01-24                        ->  last commit prior to Jan 24th, 2026 12:00 AM
-                Example:    python3 git_clone.py BoardGames -d 2025-12-09                        ->  last commit prior to Dec 9th, 2025 12:00AM
+                Example:    python3 git_clone.py BoardGames -d 2025-12-09                        ->  last commit prior to Dec 9th, 2025 12:00 AM
 """
 
 
@@ -58,14 +58,14 @@ def is_valid_date(date):
     date is within the semester range
 
     :param date: string of a date from CL args
-    :return: boolean
+    :return: True if okay date, False otherwise
     """
-    # check datetime can be parsed
+    # just check datetime can be parsed
     try:
         datetime.strptime(date, "%Y-%m-%d")
         return True
     except ValueError:
-        print("Invalid ISO 8601 date for [--deadline DEADLINE]. Format: YYYY-MM-DD")
+        print("Invalid ISO 8601 date for [-d ASGN_DEADLINE]. Format: YYYY-MM-DD")
         return False
 
 
@@ -98,7 +98,7 @@ def build_base_url(args, root_url):
 
 
 def get_names_usernames(names_usernames_file):
-    """Reads all the name, username pairs in the .csv specified in this file
+    """Reads all the name, username pairs in the .csv specified in .env file
 
     :param names_usernames_file: the path to the .csv file of student GitHub usernames
     :return: a list of tuples each in the form (name, username)
@@ -122,6 +122,10 @@ def get_names_usernames(names_usernames_file):
 
 def is_valid_classpath_file(classpath_file):
     """Ensures the .classpath file has a minimum working format
+
+    observed issues:
+        - has local paths to .jars
+        - has git merge conflict remnants thus the ElementTree parser fails
 
     :param classpath_file: path to the .classpath file
     :return: True if .classpath is okay, False otherwise
@@ -160,7 +164,7 @@ def is_valid_project_file(project_file):
         tree = ET.parse(project_file)
         root = tree.getroot()
 
-        # .// tells the XML parser to search recursively for tag (called an XPath)
+        # .// tells the XML parser to search recursively for tag (XPath)
         # to avoid warnings must compare to None instead of checking truthy or falsy
         if root.find(".//buildCommand") is None:
             print("bad .project file: missing buildCommand tag")
@@ -188,10 +192,11 @@ def find_src_dir(student_repo_local):
                     capture_output=True, text=True)
     if status.returncode != 0:
         print(f"error searching student repo for src dir: {status.returncode}")
+        return
 
-    # want the src dir path from the project entry point
+    # want the src dir path starting right after the project entry point
     if status.stdout != "":
-        src_path = status.stdout
+        src_path = status.stdout        # path starts from cwd, the find just started in student_repo_local
         repo_name = student_repo_local.name
         path_from_project = src_path.split(repo_name)[1].lstrip("/").strip()
         return path_from_project
@@ -200,12 +205,12 @@ def find_src_dir(student_repo_local):
 
 
 def inject_classpath_file(student_repo_local, default_classpath_file, src_dir="src"):
-    """Injects a basic .classpath file into student repo. the file is configured to looks for local
-    machines JRE and Junit5 library
+    """Injects a basic .classpath file into student repo. the file is configured to look for local
+    machines JRE, Junit5 library, and JavaFX user library
 
     :param student_repo_local: Path object, local path to student repo
     :param default_classpath_file: path to default .classpath file
-    :param src_dir: the path from repo root of an existing src dir. Defaults to src if not set
+    :param src_dir: the path from repo root of an existing src dir. Defaults to src if not passed
     :return: None
     """
     new_classpath_file = f"{student_repo_local}/.classpath"
@@ -213,6 +218,7 @@ def inject_classpath_file(student_repo_local, default_classpath_file, src_dir="s
     status = sp.run(['cp', default_classpath_file, new_classpath_file])
     if status.returncode != 0:
         print(f"error injecting .classpath file: {status.returncode}")
+        return
 
     if src_dir != "src":
         set_classpath_src(new_classpath_file, src_dir)
@@ -222,7 +228,7 @@ def inject_classpath_file(student_repo_local, default_classpath_file, src_dir="s
 
 def set_classpath_src(classpath_file, src):
     """Set the path to src files from .classpath file. Only called when injecting basic
-    .classpath
+    .classpath so know its parsable
 
     :param classpath_file: .classpath file in student repo
     :param src: path from repo root to src files
@@ -270,6 +276,7 @@ def inject_project_file(student_repo_local, default_project_file):
 
     if status.returncode != 0:
         print(f"error injecting .project file {status.returncode}")
+        return
 
     print("injecting a .project file into student repo")
 
@@ -333,7 +340,7 @@ def create_src_dir(student_repo_local):
 
                 # if its already been created, just add file to it
                 if package_name in packages:
-                    status = sp.run(["mv", file, f"{new_package_dir}"])
+                    status = sp.run(["mv", file, new_package_dir])
                     if status.returncode != 0:
                         print(f"error moving {file} to {new_package_dir}: {status.returncode}")
 
@@ -471,7 +478,6 @@ def main():
                         elif item_name == "classpath file":
                             if src_dir != "":
                                 inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
-                            # no .classpath and no src, so must make both
                             else:
                                 inject_classpath_file(student_repo_local, default_classpath_file)
                         elif item_name == "src directory":
