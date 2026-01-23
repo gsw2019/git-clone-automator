@@ -223,7 +223,7 @@ def inject_classpath_file(student_repo_local, default_classpath_file, src_dir="s
     if src_dir != "src":
         set_classpath_src(new_classpath_file, src_dir)
 
-    print("injecting a .classpath file into student repo")
+    print("injecting a .classpath file into student repo (build path error, deductible)")
 
 
 def set_classpath_src(classpath_file, src):
@@ -278,7 +278,7 @@ def inject_project_file(student_repo_local, default_project_file):
         print(f"error injecting .project file {status.returncode}")
         return
 
-    print("injecting a .project file into student repo")
+    print("injecting a .project file into student repo (build path error, deductible)")
 
 
 def rename_project(project_file, repo_name):
@@ -314,7 +314,7 @@ def create_src_dir(student_repo_local):
         print(f"error creating src directory: {status.returncode}")
         return
 
-    print("created a src directory")
+    print("created a src directory (build path or compilation error, deductible)")
 
     # find all the .java files in their repo
     # stdout will be the paths from the target dir
