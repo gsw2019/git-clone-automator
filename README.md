@@ -72,30 +72,30 @@ The initial goal was to automate the cloning of student repositories containing 
 
 ### Invocation
 
-`python3 git_clone_script.py [-h] [-num ASGN_NUM] [-name ASGN_NAME] [-d ASGN_DEADLINE] [-f ASGN_TESTS] ASGN_TYPE
+`python3 git_clone.py [-h] [-num ASGN_NUM] [-name ASGN_NAME] [-d ASGN_DEADLINE] [-f ASGN_TESTS] ASGN_TYPE
 `
 
 ### Examples
 
 Most recent commit:
 
-`python3 git_clone_script.py project -num 1`
+`python3 git_clone.py project -num 1`
 
 Last commit prior to Sept 9th, 2025 12:00 AM: 
 
-`python3 git_clone_script.py project -num 1 -d 2025-09-09`
+`python3 git_clone.py project -num 1 -d 2025-09-09`
 
 last commit prior to Jan 27th, 2026 12:00 AM:
 
-`python3 git_clone_script.py project -num 1 -name mastermind -d 2026-01-27`
+`python3 git_clone.py project -num 1 -name mastermind -d 2026-01-27`
 
 last commit prior to Jan 24th, 2026 12:00 AM:
 
-`python3 git_clone_script.py lab -num 1 -d 2026-01-24`
+`python3 git_clone.py lab -num 1 -d 2026-01-24`
 
 Last commit prior to Dec 9th, 2025 12:00AM:
 
-`python3 git_clone_script.py BoardGames -d 2025-12-09`
+`python3 git_clone.py BoardGames -d 2025-12-09`
 
 ---
 
