@@ -22,38 +22,43 @@ Invocation:     Must provide at least assignment type on command line.
 
 
 import subprocess as sp
+from argparse import ArgumentParser
 from datetime import datetime
+from multiprocessing.managers import Namespace
 from pathlib import Path
 import xml.etree.ElementTree as ET
 import argparse
+from typing import TextIO
+
+
 from dotenv import dotenv_values
 
 
-def get_args():
+def get_args() -> Namespace:
     """Ensures the user has minimal required arguments and they adhere to expected types
 
     :return: a populated namespace object with attributes defined by add_argument methods
     """
     # use library tool to get CL arguments
     # if invoked inappropriately will show a helpful usage message
-    parser = argparse.ArgumentParser()
+    parser: ArgumentParser = argparse.ArgumentParser()
     parser.add_argument("ASGN_TYPE", type=str)                                                       # positional arg
     parser.add_argument("-num", "--number", dest="ASGN_NUM", type=int, help="assignment number")     # optional arg
     parser.add_argument("-name", "--name", dest="ASGN_NAME", type=str, help="assignment name")       # optional arg
     parser.add_argument("-d", "--deadline", dest="ASGN_DEADLINE", help="deadline date in ISO 8601")  # optional arg
     parser.add_argument("-f", "--file", dest="ASGN_TESTS", help="path to TA test suite")             # optional arg
 
-    cl_args = parser.parse_args()      # default comes from sys.argv
+    cl_args: Namespace = parser.parse_args()      # default comes from sys.argv
 
     # check date if provided
-    if getattr(cl_args, "ASGN_DEADLINE") is not None and not is_valid_date(getattr(cl_args, "ASGN_DEADLINE")):
+    if cl_args.ASGN_DEADLINE is not None and not is_valid_date(cl_args.ASGN_DEADLINE):
         print(parser.print_help())
         exit(1)
 
     return cl_args
 
 
-def is_valid_date(date):
+def is_valid_date(date) -> bool:
     """Ensures the deadline date provided by the user is in ISO 8601 format and the
     date is within the semester range
 
@@ -69,22 +74,22 @@ def is_valid_date(date):
         return False
 
 
-def build_base_url(args, root_url):
+def build_base_url(args: Namespace, root_url: str) -> str:
     """String builds the URL that will be used to clone each repository.
 
     :param args: a namespace object with attributes defined from command line args
     :param root_url: the prefix url for the organization
     :return: a string URL
     """
-    asgn_type = getattr(args, "ASGN_TYPE")  # at the least, have this
-    asgn_num = getattr(args, "ASGN_NUM")
-    asgn_name = getattr(args, "ASGN_NAME")
+    asgn_type: str = args.ASGN_TYPE  # at the least, have this
+    asgn_num: str = args.ASGN_NUM
+    asgn_name: str = args.ASGN_NAME
 
     # fill asgn name with dashes if it has spaces? Dashes seem to be GitHub standard. Potential case
     if asgn_name:
         asgn_name = asgn_name.replace(" ", "-")
 
-    base_url = ""
+    base_url: str = ""
     if asgn_num is None and asgn_name is None:
         base_url = f"{root_url}{asgn_type}-[USERNAME].git"
     elif asgn_name is None and asgn_num is not None:
@@ -97,18 +102,18 @@ def build_base_url(args, root_url):
     return base_url
 
 
-def get_names_usernames(names_usernames_file):
+def get_names_usernames(names_usernames_file: Path) -> list[tuple]:
     """Reads all the name, username pairs in the .csv specified in .env file
 
     :param names_usernames_file: the path to the .csv file of student GitHub usernames
     :return: a list of tuples each in the form (name, username)
     """
-    names_usernames_file = open(names_usernames_file, "r")
-    names_usernames = []
+    names_usernames_file: TextIO = open(names_usernames_file, "r")
+    names_usernames: list[tuple] = []
 
     # skips .csv header line
     for line in names_usernames_file.readlines()[1:]:
-        line_elements = line.strip().split(",")
+        line_elements: list[str] = line.strip().split(",")
 
         # if no name or username is recorded, skip it
         if len(line_elements) != 2 or line_elements[0].strip() == "" or line_elements[1].strip() == "":
@@ -117,10 +122,12 @@ def get_names_usernames(names_usernames_file):
         name, username = line_elements[0].strip(), line_elements[1].strip()
         names_usernames.append((name, username))
 
+    names_usernames_file.close()
+
     return names_usernames
 
 
-def is_valid_classpath_file(classpath_file):
+def is_valid_classpath_file(classpath_file: Path) -> bool:
     """Ensures the .classpath file has a minimum working format
 
     observed issues:
@@ -131,12 +138,12 @@ def is_valid_classpath_file(classpath_file):
     :return: True if .classpath is okay, False otherwise
     """
     try:
-        tree = ET.parse(classpath_file)
-        root = tree.getroot()
+        tree: ET.ElementTree = ET.parse(classpath_file)
+        root: ET.Element = tree.getroot()
 
         # loop over all <classpathentry> tags and look for known issue attributes
         for tag in root.findall("classpathentry"):
-            type_of_entry = tag.get("kind")
+            type_of_entry: str = tag.get("kind")
 
             if type_of_entry == "lib":
                 print('bad .classpath file: classpathentry tag with attribute and value pair: kind="lib"')
@@ -149,7 +156,7 @@ def is_valid_classpath_file(classpath_file):
         return False
 
 
-def is_valid_project_file(project_file):
+def is_valid_project_file(project_file) -> bool:
     """Ensures the .project file has a minimum working format
 
     observed issues:
@@ -161,8 +168,8 @@ def is_valid_project_file(project_file):
     :return: True if .project is okay, False otherwise
     """
     try:
-        tree = ET.parse(project_file)
-        root = tree.getroot()
+        tree: ET.ElementTree = ET.parse(project_file)
+        root: ET.Element = tree.getroot()
 
         # .// tells the XML parser to search recursively for tag (XPath)
         # to avoid warnings must compare to None instead of checking truthy or falsy
@@ -180,7 +187,7 @@ def is_valid_project_file(project_file):
         return False
 
 
-def find_src_dir(student_repo_local):
+def find_src_dir(student_repo_local) -> str | None:
     """Checks if the project has a src folder. Isn't required to be top-level
 
     :param student_repo_local: Path object, path to student repo from target dir
@@ -199,7 +206,7 @@ def find_src_dir(student_repo_local):
     return ""
 
 
-def inject_classpath_file(student_repo_local, default_classpath_file, src_dir="src"):
+def inject_classpath_file(student_repo_local: Path, default_classpath_file: Path, src_dir="src") -> None:
     """Injects a basic .classpath file into student repo. the file is configured to look for local
     machines JRE, Junit5 library, and JavaFX user library
 
@@ -208,11 +215,11 @@ def inject_classpath_file(student_repo_local, default_classpath_file, src_dir="s
     :param src_dir: the path from repo root of an existing src dir. Defaults to src if not passed
     :return: None
     """
-    new_classpath_file = f"{student_repo_local}/.classpath"
+    new_classpath_file: Path = student_repo_local / ".classpath"
 
-    status = sp.run(['cp', default_classpath_file, new_classpath_file])
-    if status.returncode != 0:
-        print(f"error injecting .classpath file: {status.returncode}")
+    default_classpath_file.copy(new_classpath_file)     # returns path to target
+    if not new_classpath_file.exists():
+        print(f"error injecting .classpath file")
         return
 
     if src_dir != "src":
@@ -221,7 +228,7 @@ def inject_classpath_file(student_repo_local, default_classpath_file, src_dir="s
     print("injecting a .classpath file into student repo (build path error, deductible)")
 
 
-def set_classpath_src(classpath_file, src):
+def set_classpath_src(classpath_file: Path, src: str) -> None:
     """Set the path to src files from .classpath file. Only called when injecting basic
     .classpath so know its parsable
 
@@ -229,11 +236,11 @@ def set_classpath_src(classpath_file, src):
     :param src: path from repo root to src files
     :return: None
     """
-    tree = ET.parse(classpath_file)
-    root = tree.getroot()
+    tree: ET.ElementTree = ET.parse(classpath_file)
+    root: ET.Element = tree.getroot()
 
     for tag in root.findall("classpathentry"):
-        type_of_entry = tag.get("kind")
+        type_of_entry: str = tag.get("kind")
 
         if type_of_entry == "src":
             tag.set("path", src)
@@ -242,41 +249,43 @@ def set_classpath_src(classpath_file, src):
     tree.write(classpath_file, encoding="UTF-8", xml_declaration=True)
 
 
-def get_classpath_src(classpath_file):
+def get_classpath_src(classpath_file: Path) -> str:
     """Get the path declared in .classpath that supposedly points to src files. Only called
     after known to be parsable
 
     :param classpath_file: .classpath file in student repo
     :return: path to src files found in .classpath
     """
-    tree = ET.parse(classpath_file)
-    root = tree.getroot()
+    tree: ET.ElementTree = ET.parse(classpath_file)
+    root: ET.Element = tree.getroot()
 
     for tag in root.findall("classpathentry"):
-        type_of_entry = tag.get("kind")
+        type_of_entry: str = tag.get("kind")
 
         if type_of_entry == "src":
             return tag.get("path")
 
+    return ""
 
-def inject_project_file(student_repo_local, default_project_file):
+
+def inject_project_file(student_repo_local: Path, default_project_file: Path) -> None:
     """Injects a basic .project file into student repo. Name tag is blank
 
     :param student_repo_local: Path object, local path to student repo
     :param default_project_file: path to default .project file
     :return: None
     """
-    new_project_file = f"{student_repo_local}/.project"
-    status = sp.run(['cp', default_project_file, new_project_file])
+    new_project_file: Path = student_repo_local / ".project"
 
-    if status.returncode != 0:
-        print(f"error injecting .project file {status.returncode}")
+    default_project_file.copy(new_project_file)
+    if not new_project_file.exists():
+        print(f"error injecting .project file")
         return
 
     print("injecting a .project file into student repo (build path error, deductible)")
 
 
-def rename_project(project_file, repo_name):
+def rename_project(project_file: Path, repo_name: str) -> None:
     """Renames the students Eclipse project to their repo name. Edits the .project file
     using XML parser package
 
@@ -286,16 +295,16 @@ def rename_project(project_file, repo_name):
     """
     # use XML parsing and editing tool (.project is XML)
     # Only rename after checking project file. Don't need try-except for parsing here
-    tree = ET.parse(project_file)
-    root = tree.getroot()
+    tree: ET.ElementTree = ET.parse(project_file)
+    root: ET.Element = tree.getroot()
     # change <name> tag, first instance is project name
-    name_tag = root.find("name")
+    name_tag: ET.Element[str] = root.find("name")
     name_tag.text = repo_name
     tree.write(project_file, encoding="UTF-8", xml_declaration=True)
     print(f"renamed project to {repo_name}")
 
 
-def create_src_dir(student_repo_local):
+def create_src_dir(student_repo_local) -> Path | None:
     """If src directory doesn't exist, creates a src directory in students repo at the top level with all
     packages and puts .java files in their respective packages
 
@@ -303,11 +312,12 @@ def create_src_dir(student_repo_local):
     :return: path to new local src dir
     """
     # create the src dir in students repo
-    new_src_dir = f"{student_repo_local}/src"
+    new_src_dir = student_repo_local / "src"
+    # TODO: use pathlib mkdir()
     status = sp.run(['mkdir', new_src_dir])
     if status.returncode != 0:
         print(f"error creating src directory: {status.returncode}")
-        return
+        return None
 
     print("created a src directory (build path or compilation error, deductible)")
 
@@ -339,6 +349,7 @@ def create_src_dir(student_repo_local):
 
                 # if its already been created, just add file to it
                 if package_name in packages:
+                    # TODO: use pathlib move()
                     status = sp.run(["mv", file, new_package_dir])
                     if status.returncode != 0:
                         print(f"error moving {file} to {new_package_dir}: {status.returncode}")
@@ -348,11 +359,13 @@ def create_src_dir(student_repo_local):
                 packages.append(package_name)
 
                 # create package in src
+                # TODO: use pathlib mkdir()
                 status = sp.run(["mkdir", new_package_dir])
                 if status.returncode != 0:
                     print(f"error creating package {new_package_dir}: {status.returncode}")
 
                 # move .java file to its respective package
+                # TODO: use pathlib copy()
                 status = sp.run(["mv", file, new_package_dir])
                 if status.returncode != 0:
                     print(f"error moving {file} to {new_package_dir}: {status.returncode}")
@@ -360,6 +373,7 @@ def create_src_dir(student_repo_local):
                 break
 
         if not has_package:
+            # TODO: use pathlib move()
             status = sp.run(["mv", file, new_src_dir])
             if status.returncode != 0:
                 print(f"error moving {file} to {new_src_dir}: {status.returncode}")
@@ -375,25 +389,25 @@ def main():
 
     # path of .csv file that contains student GitHub usernames
     # expected format: student, username
-    usernames = env_vars.get("USERNAMES")
+    usernames: Path = Path(env_vars.get("USERNAMES"))
 
     # path to destination for storing repos
-    target_dir = env_vars.get("TARGET_DIR")
+    target_dir: Path = Path(env_vars.get("TARGET_DIR"))
 
     # path to basic .project file
-    default_project_file = env_vars.get("PROJECT_FILE")
+    default_project_file: Path = Path(env_vars.get("PROJECT_FILE"))
 
     # path to basic .classpath file
-    default_classpath_file = env_vars.get("CLASSPATH_FILE")
+    default_classpath_file: Path = Path(env_vars.get("CLASSPATH_FILE"))
 
     root_url = env_vars.get("ROOT_URL")
 
     # --------------------------------------------
     # gather info for clones and project renaming
     # --------------------------------------------
-    args = get_args()
+    args: Namespace = get_args()
 
-    asgn_deadline = getattr(args, 'ASGN_DEADLINE')
+    asgn_deadline = args.ASGN_DEADLINE
     if asgn_deadline is not None:
         asgn_deadline = datetime.strptime(asgn_deadline, "%Y-%m-%d")    # appends 00:00:00 onto the date
 
@@ -401,7 +415,7 @@ def main():
     asgn_tests = getattr(args, "ASGN_TESTS")
 
     base_url = build_base_url(args, root_url)
-    names_usernames = get_names_usernames(usernames)
+    names_usernames: list = get_names_usernames(usernames)
 
     # --------------------------------------------
     # begin cloning
