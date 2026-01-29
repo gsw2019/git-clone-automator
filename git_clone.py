@@ -187,21 +187,16 @@ def find_src_dir(student_repo_local):
     :return: string of the src dir local path
     """
     # search for first instance of src dir in student repo
-    # if one exists will print path to stdout, otherwise prints nothing
-    status = sp.run(["find", student_repo_local, "-type", "d", "-name", "src", "-print", "-quit"],
-                    capture_output=True, text=True)
-    if status.returncode != 0:
-        print(f"error searching student repo for src dir: {status.returncode}")
-        return
+    try:
+        # rglob to recursively search for src dir
+        for src_dir in student_repo_local.rglob('src'):
+            if src_dir.is_dir():
+                return str(src_dir.relative_to(student_repo_local))
+    except Exception as e:
+        print(f"error searching student repo for src dir: {e}")
+        return None
 
-    # want the src dir path starting right after the project entry point
-    if status.stdout != "":
-        src_path = status.stdout        # path starts from cwd, the find just started in student_repo_local
-        repo_name = student_repo_local.name
-        path_from_project = src_path.split(repo_name)[1].lstrip("/").strip()
-        return path_from_project
-
-    return status.stdout
+    return ""
 
 
 def inject_classpath_file(student_repo_local, default_classpath_file, src_dir="src"):
@@ -316,10 +311,14 @@ def create_src_dir(student_repo_local):
 
     print("created a src directory (build path or compilation error, deductible)")
 
-    # find all the .java files in their repo
-    # stdout will be the paths from the target dir
-    java_files = sp.run(["find", student_repo_local, "-name", "*.java"],
-                        capture_output=True, text=True, check=True).stdout.splitlines()
+    # find all the .java files in their rep
+    try:
+        # rglob to recursively search for java files
+        # must cast to list so rglob() takes a snapshot
+        java_files = list(student_repo_local.rglob("*.java"))
+    except Exception as e:
+        print(f"error searching student repo for .java files: {e}")
+        return None
 
     packages = []       # keep a running list so don't duplicate packages
     # check if any .java files declare packages
@@ -449,6 +448,8 @@ def main():
                 if status.returncode != 0:
                     print(f"checkout failed: {status.returncode}")
 
+            print("\n\nPROJECT STRUCTURE LOGS: ")
+
             # define expected project contents
             project_file = Path(f"{student_repo_local}/.project")       # should always be top-level
             classpath_file = Path(f"{student_repo_local}/.classpath")   # should always be top-level
@@ -460,8 +461,6 @@ def main():
                 "classpath file": classpath_file.exists(),
                 "src directory": src_dir
             }
-
-            print("\n\nPROJECT STRUCTURE LOGS: ")
 
             # determine what is missing
             missing_content = [item for item, present in project_state.items() if not present or ""]
@@ -481,10 +480,9 @@ def main():
                             else:
                                 inject_classpath_file(student_repo_local, default_classpath_file)
                         elif item_name == "src directory":
-                            # case where there is no src directory and classpath is set as such. Main class at top level
-                            if is_valid_classpath_file(classpath_file) and get_classpath_src(classpath_file) == "":
-                                pass
-                            else:
+                            # avoids case where there is no src directory and classpath is set as such. Main class at top level
+                            # avoids case when search for src dir failed
+                            if not (is_valid_classpath_file(classpath_file) and get_classpath_src(classpath_file) == "") and project_state[item_name] is not None:
                                 create_src_dir(student_repo_local)
                     # not missing, but still need to check if okay
                     else:
