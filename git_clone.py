@@ -28,6 +28,7 @@ from multiprocessing.managers import Namespace
 from pathlib import Path
 import xml.etree.ElementTree as ET
 import argparse
+from subprocess import CompletedProcess
 from typing import TextIO
 from dotenv import dotenv_values
 
@@ -56,9 +57,9 @@ def get_args() -> Namespace:
     return cl_args
 
 
-def is_valid_date(date) -> bool:
-    """Ensures the deadline date provided by the user is in ISO 8601 format and the
-    date is within the semester range
+def is_valid_date(date: str) -> bool:
+    """Ensures the deadline date provided by the user is in ISO 8601 format and the date is within the
+    semester range
 
     :param date: string of a date from CL args
     :return: True if okay date, False otherwise
@@ -100,14 +101,14 @@ def build_base_url(args: Namespace, root_url: str) -> str:
     return base_url
 
 
-def get_names_usernames(names_usernames_file: Path) -> list[tuple]:
+def get_names_usernames(names_usernames_file: Path) -> list[tuple[str, str]]:
     """Reads all the name, username pairs in the .csv specified in .env file
 
     :param names_usernames_file: the path to the .csv file of student GitHub usernames
     :return: a list of tuples each in the form (name, username)
     """
     names_usernames_file: TextIO = open(names_usernames_file, "r")
-    names_usernames: list[tuple] = []
+    names_usernames: list[tuple[str, str]] = []
 
     # skips .csv header line
     for line in names_usernames_file.readlines()[1:]:
@@ -188,8 +189,10 @@ def is_valid_project_file(project_file) -> bool:
 def find_src_dir(student_repo_local) -> str | None:
     """Checks if the project has a src folder. Isn't required to be top-level
 
+    Function only returns None when the search fails
+
     :param student_repo_local: Path object, path to student repo from target dir
-    :return: string of the src dir local path
+    :return: string of the src dir local path or None
     """
     # search for first instance of src dir in student repo
     try:
@@ -303,12 +306,14 @@ def rename_project(project_file: Path, repo_name: str) -> None:
 
 
 def create_src_dir(student_repo_local: Path, src_dir_path: str = "src") -> Path | None:
-    """Called after determining a src directory doesn't exist. Creates a src directory in students repo at the top level
-    with all packages and puts .java files in their respective packages
+    """Called after determining a src directory doesn't exist. Creates a src directory and subdirectories (packages) in
+    students repo at the top level. if srd_dir_path is passed, will create src there.
+
+    Function only returns None when fails to make src dir or fails to search for .java files
 
     :param student_repo_local: Path object, local path to student repo
     :param src_dir_path: expected path of src directory
-    :return: path to new local src dir
+    :return: path to new local src dir or None
     """
     # create a top level src dir in students repo
     if src_dir_path != "src":
@@ -324,7 +329,7 @@ def create_src_dir(student_repo_local: Path, src_dir_path: str = "src") -> Path 
 
     print("created a src directory (build path or compilation error, deductible)")
 
-    # find all the .java files in their rep
+    # find all the .java files in the repo
     try:
         # rglob to recursively search for java files
         # must cast to list so is a snap shot of rglob()
@@ -382,11 +387,11 @@ def create_src_dir(student_repo_local: Path, src_dir_path: str = "src") -> Path 
     return new_src_dir
 
 
-def main():
+def main() -> None:
     # --------------------------------------
     # set user-specific globals
     # --------------------------------------
-    env_vars = dotenv_values('.env')
+    env_vars: dict[str, str | None] = dotenv_values('.env')
 
     # path of .csv file that contains student GitHub usernames
     # expected format: student, username
@@ -401,85 +406,85 @@ def main():
     # path to basic .classpath file
     default_classpath_file: Path = Path(env_vars.get("CLASSPATH_FILE"))
 
-    root_url = env_vars.get("ROOT_URL")
+    root_url: str = env_vars.get("ROOT_URL")
 
     # --------------------------------------------
     # gather info for clones and project renaming
     # --------------------------------------------
     args: Namespace = get_args()
 
-    asgn_deadline = args.ASGN_DEADLINE
+    asgn_deadline: str = args.ASGN_DEADLINE
     if asgn_deadline is not None:
-        asgn_deadline = datetime.strptime(asgn_deadline, "%Y-%m-%d")    # appends 00:00:00 onto the date
+        asgn_deadline: datetime = datetime.strptime(asgn_deadline, "%Y-%m-%d")    # appends 00:00:00 onto the date
 
     # TODO: implement adding TA test suites if provided
-    asgn_tests = getattr(args, "ASGN_TESTS")
+    # asgn_tests: Path = Path(args.ASGN_TESTS)
 
-    base_url = build_base_url(args, root_url)
-    names_usernames: list = get_names_usernames(usernames)
+    base_url: str = build_base_url(args, root_url)
+    names_usernames: list[tuple[str, str]] = get_names_usernames(usernames)
 
     # --------------------------------------------
     # begin cloning
     # --------------------------------------------
-    total_clones = 0
+    total_clones: int = 0
 
     for name, username in names_usernames:
         print("\n")
         print("=" * 80)
-        result_url = base_url.replace("[USERNAME]", username)
+        result_url: str = base_url.replace("[USERNAME]", username)
 
-        repo_start_index = result_url.rfind('/') + 1            # start after base url
-        repo_end_index = result_url.rfind('.')                  # go until .git
-        repo_name = result_url[repo_start_index:repo_end_index]
+        repo_start_index: int = result_url.rfind('/') + 1            # start after base url
+        repo_end_index: int = result_url.rfind('.')                  # go until .git
+        repo_name: str = result_url[repo_start_index:repo_end_index]
 
         # clone student repo
         # -C option specifies directory to mimic operating in
         # use run() because want to manually check the return code
-        status = sp.run(["git", "-C", target_dir, "clone", result_url])
+        status: CompletedProcess = sp.run(["git", "-C", target_dir, "clone", result_url])
 
         # clone was successful
         if status.returncode == 0:
-            student_repo_local = Path(f"{target_dir}/{repo_name}")
+            student_repo_local: Path = target_dir / repo_name
 
             if asgn_deadline is not None:
                 # need to ensure we have the correct default branch name
                 # stdout should be something like one of these:
                 #   refs/remotes/origin/master
                 #   refs/remotes/origin/main
-                default_branch = sp.check_output(
+                default_branch: str = sp.check_output(
                     ["git", "-C", student_repo_local, "symbolic-ref", "refs/remotes/origin/HEAD"],
                     text=True).strip().split("/")[-1]
 
                 # get the last commit prior to deadline
                 # key git command: rev-list
                 # should have a commit hash if repo was created, even if no pushes by student
-                commit_hash = sp.check_output(
+                commit_hash: str = sp.check_output(
                     ["git", "-C", student_repo_local, "rev-list", "-n", "1", f"--before={asgn_deadline}",
                      default_branch],
                     text=True).strip()
 
                 print(f"\n\n***CHECKING OUT LAST COMMIT PRIOR TO {asgn_deadline}***\n\n")
-                status = sp.run(["git", "-C", student_repo_local, "checkout", commit_hash])
+                status: CompletedProcess = sp.run(["git", "-C", student_repo_local, "checkout", commit_hash])
                 if status.returncode != 0:
                     print(f"checkout failed: {status.returncode}")
 
             print("\n\nPROJECT STRUCTURE LOGS: ")
 
             # define expected project contents
-            project_file = Path(f"{student_repo_local}/.project")       # should always be top-level
-            classpath_file = Path(f"{student_repo_local}/.classpath")   # should always be top-level
+            project_file: Path = student_repo_local / ".project"            # should always be top-level
+            classpath_file: Path = student_repo_local / ".classpath"        # should always be top-level
             src_dir: str | None = find_src_dir(student_repo_local)                  # function call because how checking if src is not top level
 
             # record project state
-            project_state = {
+            project_state: dict[str, bool | str] = {
                 "project file": project_file.exists(),
                 "classpath file": classpath_file.exists(),
                 "src directory": src_dir
             }
 
             # determine what is missing
-            missing_content = [item for item, present in project_state.items() if not present or ""]
-            missing_statement = f"project is missing: {", ".join(missing_content)}"
+            missing_content: list[str] = [item for item, present in project_state.items() if not present or ""]
+            missing_statement: str = f"project is missing: {", ".join(missing_content)}"
 
             # missing some minimal requirements
             if 0 < len(missing_content) < len(project_state):
@@ -495,6 +500,7 @@ def main():
                             else:
                                 inject_classpath_file(student_repo_local, default_classpath_file)
                                 create_src_dir(student_repo_local)
+                                missing_content.remove("src directory")
                         elif item_name == "src directory":
                             if is_valid_classpath_file(classpath_file) and get_classpath_src(classpath_file) != "":
                                 curr_src_dir: str = get_classpath_src(classpath_file)
@@ -509,6 +515,7 @@ def main():
                             else:
                                 inject_classpath_file(student_repo_local, default_classpath_file)
                                 create_src_dir(student_repo_local)
+                                missing_content.remove("src directory")
 
             # missing all minimum requirements
             elif len(missing_content) == len(project_state):
