@@ -486,54 +486,107 @@ def main() -> None:
             missing_content: list[str] = [item for item, present in project_state.items() if not present or ""]
             missing_statement: str = f"project is missing: {", ".join(missing_content)}"
 
-            # missing some minimal requirements
-            if 0 < len(missing_content) < len(project_state):
-                print(missing_statement)
-                for item_name in project_state:
-                    # is missing
-                    if item_name in missing_content:
-                        if item_name == "project file":
-                            inject_project_file(student_repo_local, default_project_file)
-                        elif item_name == "classpath file":
-                            if src_dir is not None and src_dir != "":
-                                inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
-                            else:
-                                inject_classpath_file(student_repo_local, default_classpath_file)
-                                create_src_dir(student_repo_local)
-                                missing_content.remove("src directory")
-                        elif item_name == "src directory":
-                            if is_valid_classpath_file(classpath_file) and get_classpath_src(classpath_file) != "":
-                                curr_src_dir: str = get_classpath_src(classpath_file)
-                                create_src_dir(student_repo_local, src_dir_path=curr_src_dir)
-                    # not missing, but still need to check if okay
-                    else:
-                        if item_name == "project file" and not is_valid_project_file(project_file):
-                            inject_project_file(student_repo_local, default_project_file)
-                        elif item_name == "classpath file" and not is_valid_classpath_file(classpath_file):
-                            if src_dir is not None and src_dir != "":
-                                inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
-                            else:
-                                inject_classpath_file(student_repo_local, default_classpath_file)
-                                create_src_dir(student_repo_local)
-                                missing_content.remove("src directory")
+            # TODO: try Python match case
+            match project_state:
+                # 1) .project, .classpath, src
+                case { "project file": True, "classpath file": True, "src directory": n} if n:
+                    if not is_valid_project_file(project_file):
+                        inject_project_file(student_repo_local, default_project_file)
+                    if not is_valid_classpath_file(classpath_file):
+                        inject_classpath_file(student_repo_local, default_classpath_file, src_dir=n)
 
-            # missing all minimum requirements
-            elif len(missing_content) == len(project_state):
-                print(missing_statement)
-                inject_project_file(student_repo_local, default_project_file)
-                inject_classpath_file(student_repo_local, default_classpath_file)
-                create_src_dir(student_repo_local)
-
-            # okay project, but still need to look at .classpath and .project
-            elif len(missing_content) == 0:
-                if not is_valid_project_file(project_file):
-                    inject_project_file(student_repo_local, default_project_file)
-                if not is_valid_classpath_file(classpath_file):
-                    if src_dir is not None and src_dir != "":
-                        inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
-                    else:
+                # 2) .project, .classpath, no src
+                case { "project file": True, "classpath file": True, "src directory": n} if n == "":
+                    if not is_valid_project_file(project_file):
+                        inject_project_file(student_repo_local, default_project_file)
+                    if not is_valid_classpath_file(classpath_file):
                         inject_classpath_file(student_repo_local, default_classpath_file)
                         create_src_dir(student_repo_local)
+                        break
+                    if get_classpath_src(classpath_file) != "":
+                        create_src_dir(student_repo_local, get_classpath_src(classpath_file))
+
+                # 3) .project, .classpath, error searching for src
+                case { "project file": True, "classpath file": True, "src directory": n} if n is None:
+                    if not is_valid_project_file(project_file):
+                        inject_project_file(student_repo_local, default_project_file)
+                    if not is_valid_classpath_file(classpath_file):
+                        inject_classpath_file(student_repo_local, default_classpath_file)
+
+                # 4) .project, no .classpath, src
+                case { "project file": True, "classpath file": False, "src directory": n } if n:
+                    if not is_valid_project_file(project_file):
+                        inject_project_file(student_repo_local, default_project_file)
+                    inject_classpath_file(student_repo_local, default_classpath_file, src_dir=n)
+
+                # 5) .project, no .classpath, no src
+                case { "project file": True, "classpath file": False, "src directory": n } if n == "":
+                    if not is_valid_project_file(project_file):
+                        inject_project_file(student_repo_local, default_project_file)
+                    inject_classpath_file(student_repo_local, default_classpath_file)
+                    create_src_dir(student_repo_local)
+
+                # 6) .project, no .classpath, error searching for src
+                case { "project file": True, "classpath file": False, "src directory": n } if n is None:
+                    if not is_valid_project_file(project_file):
+                        inject_project_file(student_repo_local, default_project_file)
+                    inject_classpath_file(student_repo_local, default_classpath_file)
+
+                # 7) no .project, .classpath, src
+                case { "project file": False, "classpath file": True, "src directory": n } if n:
+                    inject_project_file(student_repo_local, default_project_file)
+                    inject_classpath_file(classpath_file, default_classpath_file, src_dir=n)
+
+                # 8) no .project
+
+            # # missing some minimal requirements
+            # if 0 < len(missing_content) < len(project_state):
+            #     print(missing_statement)
+            #     for item_name in project_state:
+            #         # is missing
+            #         if item_name in missing_content:
+            #             if item_name == "project file":
+            #                 inject_project_file(student_repo_local, default_project_file)
+            #             elif item_name == "classpath file":
+            #                 if src_dir is not None and src_dir != "":
+            #                     inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
+            #                 else:
+            #                     inject_classpath_file(student_repo_local, default_classpath_file)
+            #                     create_src_dir(student_repo_local)
+            #                     missing_content.remove("src directory")
+            #             elif item_name == "src directory":
+            #                 if is_valid_classpath_file(classpath_file) and get_classpath_src(classpath_file) != "":
+            #                     curr_src_dir: str = get_classpath_src(classpath_file)
+            #                     create_src_dir(student_repo_local, src_dir_path=curr_src_dir)
+            #         # not missing, but still need to check if okay
+            #         else:
+            #             if item_name == "project file" and not is_valid_project_file(project_file):
+            #                 inject_project_file(student_repo_local, default_project_file)
+            #             elif item_name == "classpath file" and not is_valid_classpath_file(classpath_file):
+            #                 if src_dir is not None and src_dir != "":
+            #                     inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
+            #                 else:
+            #                     inject_classpath_file(student_repo_local, default_classpath_file)
+            #                     create_src_dir(student_repo_local)
+            #                     missing_content.remove("src directory")
+            #
+            # # missing all minimum requirements
+            # elif len(missing_content) == len(project_state):
+            #     print(missing_statement)
+            #     inject_project_file(student_repo_local, default_project_file)
+            #     inject_classpath_file(student_repo_local, default_classpath_file)
+            #     create_src_dir(student_repo_local)
+            #
+            # # okay project, but still need to look at .classpath and .project
+            # elif len(missing_content) == 0:
+            #     if not is_valid_project_file(project_file):
+            #         inject_project_file(student_repo_local, default_project_file)
+            #     if not is_valid_classpath_file(classpath_file):
+            #         if src_dir is not None and src_dir != "":
+            #             inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
+            #         else:
+            #             inject_classpath_file(student_repo_local, default_classpath_file)
+            #             create_src_dir(student_repo_local)
 
             # always executed after checking .project, so we know it's parsable by the time reach here
             rename_project(project_file, repo_name)
