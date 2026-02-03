@@ -220,14 +220,14 @@ def inject_classpath_file(student_repo_local: Path, default_classpath_file: Path
     new_classpath_file: Path = student_repo_local / ".classpath"
     try:
         default_classpath_file.copy(new_classpath_file)     # returns path to target
+        print("injecting a .classpath file into student repo (build path error, deductible)")
+
     except OSError as e:
         print(f"error injecting .classpath file. Error code: {e.errno}, {e.strerror}")
         return
 
     if src_dir != "src":
         set_classpath_src(new_classpath_file, src_dir)
-
-    print("injecting a .classpath file into student repo (build path error, deductible)")
 
 
 def set_classpath_src(classpath_file: Path, src: str) -> None:
