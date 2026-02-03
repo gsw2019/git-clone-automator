@@ -200,6 +200,7 @@ def find_src_dir(student_repo_local) -> str | None:
         for src_dir in student_repo_local.rglob('src'):
             if src_dir.is_dir():
                 return str(src_dir.relative_to(student_repo_local))
+
     except OSError as e:
         print(f"error searching student repo for src dir. Error code: {e.errno}, {e.strerror}")
         return None
@@ -230,43 +231,50 @@ def inject_classpath_file(student_repo_local: Path, default_classpath_file: Path
 
 
 def set_classpath_src(classpath_file: Path, src: str) -> None:
-    """Set the path to src files from .classpath file. Only called when injecting basic
-    .classpath so know its parsable
+    """Set the path to src files from .classpath file.
 
     :param classpath_file: .classpath file in student repo
     :param src: path from repo root to src files
     :return: None
     """
-    tree: ET.ElementTree = ET.parse(classpath_file)
-    root: ET.Element = tree.getroot()
+    try:
+        tree: ET.ElementTree = ET.parse(classpath_file)
+        root: ET.Element = tree.getroot()
 
-    for tag in root.findall("classpathentry"):
-        type_of_entry: str = tag.get("kind")
+        for tag in root.findall("classpathentry"):
+            type_of_entry: str = tag.get("kind")
 
-        if type_of_entry == "src":
-            tag.set("path", src)
-            break
+            if type_of_entry == "src":
+                tag.set("path", src)
+                break
 
-    tree.write(classpath_file, encoding="UTF-8", xml_declaration=True)
+        tree.write(classpath_file, encoding="UTF-8", xml_declaration=True)
+        print("set .classpath src tag (build path error, deductible")
+
+    except ET.ParseError as e:
+        print(f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
 
 
-def get_classpath_src(classpath_file: Path) -> str:
-    """Get the path declared in .classpath that supposedly points to src files. Only called
-    after known to be parsable
+def get_classpath_src(classpath_file: Path) -> str | None:
+    """Get the path declared in .classpath that supposedly points to src files.
 
     :param classpath_file: .classpath file in student repo
     :return: path to src files found in .classpath
     """
-    tree: ET.ElementTree = ET.parse(classpath_file)
-    root: ET.Element = tree.getroot()
+    try:
+        tree: ET.ElementTree = ET.parse(classpath_file)
+        root: ET.Element = tree.getroot()
 
-    for tag in root.findall("classpathentry"):
-        type_of_entry: str = tag.get("kind")
+        for tag in root.findall("classpathentry"):
+            type_of_entry: str = tag.get("kind")
 
-        if type_of_entry == "src":
-            return tag.get("path")
+            if type_of_entry == "src":
+                return tag.get("path")
 
-    return ""
+        return ""
+
+    except ET.ParseError as e:
+        print(f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
 
 
 def inject_project_file(student_repo_local: Path, default_project_file: Path) -> None:
@@ -294,15 +302,19 @@ def rename_project(project_file: Path, repo_name: str) -> None:
     :param repo_name: name of the local repo
     :return: None
     """
-    # use XML parsing and editing tool (.project is XML)
-    # Only rename after checking project file. Don't need try-except for parsing here
-    tree: ET.ElementTree = ET.parse(project_file)
-    root: ET.Element = tree.getroot()
-    # change <name> tag, first instance is project name
-    name_tag: ET.Element[str] = root.find("name")
-    name_tag.text = repo_name
-    tree.write(project_file, encoding="UTF-8", xml_declaration=True)
-    print(f"renamed project to {repo_name}")
+    try:
+        # use XML parsing and editing tool (.project is XML)
+        # Only rename after checking project file. Don't need try-except for parsing here
+        tree: ET.ElementTree = ET.parse(project_file)
+        root: ET.Element = tree.getroot()
+        # change <name> tag, first instance is project name
+        name_tag: ET.Element[str] = root.find("name")
+        name_tag.text = repo_name
+        tree.write(project_file, encoding="UTF-8", xml_declaration=True)
+        print(f"renamed project to {repo_name}")
+
+    except ET.ParseError as e:
+        print(f"could not parse .project file. Error code: {e.code}, {e.msg.capitalize()}")
 
 
 def create_src_dir(student_repo_local: Path, src_dir_path: str = "src") -> Path | None:
@@ -485,57 +497,94 @@ def main() -> None:
             # determine what is missing
             missing_content: list[str] = [item for item, present in project_state.items() if not present or ""]
             missing_statement: str = f"project is missing: {", ".join(missing_content)}"
+            print(missing_statement) if len(missing_content) != 0 else None
 
-            # missing some minimal requirements
-            if 0 < len(missing_content) < len(project_state):
-                print(missing_statement)
-                for item_name in project_state:
-                    # is missing
-                    if item_name in missing_content:
-                        if item_name == "project file":
-                            inject_project_file(student_repo_local, default_project_file)
-                        elif item_name == "classpath file":
-                            if src_dir is not None and src_dir != "":
-                                inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
-                            else:
-                                inject_classpath_file(student_repo_local, default_classpath_file)
-                                create_src_dir(student_repo_local)
-                                missing_content.remove("src directory")
-                        elif item_name == "src directory":
-                            if is_valid_classpath_file(classpath_file) and get_classpath_src(classpath_file) != "":
-                                curr_src_dir: str = get_classpath_src(classpath_file)
-                                create_src_dir(student_repo_local, src_dir_path=curr_src_dir)
-                    # not missing, but still need to check if okay
-                    else:
-                        if item_name == "project file" and not is_valid_project_file(project_file):
-                            inject_project_file(student_repo_local, default_project_file)
-                        elif item_name == "classpath file" and not is_valid_classpath_file(classpath_file):
-                            if src_dir is not None and src_dir != "":
-                                inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
-                            else:
-                                inject_classpath_file(student_repo_local, default_classpath_file)
-                                create_src_dir(student_repo_local)
-                                missing_content.remove("src directory")
+            # TODO: try Python match case
+            match project_state:
+                # 1) .project, .classpath, src
+                case { "project file": True, "classpath file": True, "src directory": n } if n:
+                    if not is_valid_project_file(project_file):
+                        inject_project_file(student_repo_local, default_project_file)
+                    if not is_valid_classpath_file(classpath_file):
+                        inject_classpath_file(student_repo_local, default_classpath_file, src_dir=n)
 
-            # missing all minimum requirements
-            elif len(missing_content) == len(project_state):
-                print(missing_statement)
-                inject_project_file(student_repo_local, default_project_file)
-                inject_classpath_file(student_repo_local, default_classpath_file)
-                create_src_dir(student_repo_local)
-
-            # okay project, but still need to look at .classpath and .project
-            elif len(missing_content) == 0:
-                if not is_valid_project_file(project_file):
-                    inject_project_file(student_repo_local, default_project_file)
-                if not is_valid_classpath_file(classpath_file):
-                    if src_dir is not None and src_dir != "":
-                        inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
-                    else:
+                # 2) .project, .classpath, no src
+                case { "project file": True, "classpath file": True, "src directory": n } if n == "":
+                    if not is_valid_project_file(project_file):
+                        inject_project_file(student_repo_local, default_project_file)
+                    if not is_valid_classpath_file(classpath_file):
                         inject_classpath_file(student_repo_local, default_classpath_file)
                         create_src_dir(student_repo_local)
+                        break
+                    if get_classpath_src(classpath_file) != n:
+                        create_src_dir(student_repo_local, get_classpath_src(classpath_file))
 
-            # always executed after checking .project, so we know it's parsable by the time reach here
+                # 3) .project, .classpath, error searching for src
+                case { "project file": True, "classpath file": True, "src directory": n } if n is None:
+                    if not is_valid_project_file(project_file):
+                        inject_project_file(student_repo_local, default_project_file)
+                    if not is_valid_classpath_file(classpath_file):
+                        inject_classpath_file(student_repo_local, default_classpath_file)
+
+                # 4) .project, no .classpath, src
+                case { "project file": True, "classpath file": False, "src directory": n } if n:
+                    if not is_valid_project_file(project_file):
+                        inject_project_file(student_repo_local, default_project_file)
+                    inject_classpath_file(student_repo_local, default_classpath_file, src_dir=n)
+
+                # 5) .project, no .classpath, no src
+                case { "project file": True, "classpath file": False, "src directory": n } if n == "":
+                    if not is_valid_project_file(project_file):
+                        inject_project_file(student_repo_local, default_project_file)
+                    inject_classpath_file(student_repo_local, default_classpath_file)
+                    create_src_dir(student_repo_local)
+
+                # 6) .project, no .classpath, error searching for src
+                case { "project file": True, "classpath file": False, "src directory": n } if n is None:
+                    if not is_valid_project_file(project_file):
+                        inject_project_file(student_repo_local, default_project_file)
+                    inject_classpath_file(student_repo_local, default_classpath_file)
+
+                # 7) no .project, .classpath, src
+                case { "project file": False, "classpath file": True, "src directory": n } if n:
+                    inject_project_file(student_repo_local, default_project_file)
+                    if not is_valid_classpath_file(classpath_file):
+                        inject_classpath_file(student_repo_local, default_classpath_file, src_dir=n)
+                    if get_classpath_src(classpath_file) != n:
+                        set_classpath_src(classpath_file, n)
+
+                # 8) no .project, .classpath, no src
+                case { "project file": False, "classpath file": True, "src directory": n } if n == "":
+                    inject_project_file(student_repo_local, default_project_file)
+                    if not is_valid_classpath_file(classpath_file):
+                        inject_classpath_file(student_repo_local, default_classpath_file)
+                        create_src_dir(student_repo_local)
+                        break
+                    if get_classpath_src(classpath_file) != n:
+                        create_src_dir(student_repo_local, get_classpath_src(classpath_file))
+
+                # 9) no .project, .classpath, error finding src
+                case { "project file": False, "classpath file": True, "src directory": n } if n is None:
+                    inject_project_file(student_repo_local, default_project_file)
+                    if not is_valid_classpath_file(classpath_file):
+                        inject_classpath_file(student_repo_local, default_classpath_file)
+
+                # 10) no .project, no .classpath, src
+                case { "project file": False, "classpath file": False, "src directory": n } if n:
+                    inject_project_file(student_repo_local, default_project_file)
+                    inject_classpath_file(student_repo_local, default_classpath_file, src_dir=n)
+
+                # 11) no .project, no .classpath, no src
+                case { "project file": False, "classpath file": False, "src directory": n } if n == "":
+                    inject_project_file(student_repo_local, default_project_file)
+                    inject_classpath_file(student_repo_local, default_classpath_file)
+                    create_src_dir(student_repo_local)
+
+                # 12) no .project, no .classpath, error finding src
+                case {"project file": False, "classpath file": False, "src directory": n} if n is None:
+                    inject_project_file(student_repo_local, default_project_file)
+                    inject_classpath_file(student_repo_local, default_classpath_file)
+
             rename_project(project_file, repo_name)
 
             total_clones += 1
