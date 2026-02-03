@@ -29,8 +29,9 @@ htmlcov/
 # Logs
 *.log
 
-# scratch
+# other .py files for testing
 scratch.py
+git_clone_script_simple.py
 
 # student data
 student_github_usernames.csv

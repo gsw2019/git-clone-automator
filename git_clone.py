@@ -499,7 +499,6 @@ def main() -> None:
             missing_statement: str = f"project is missing: {", ".join(missing_content)}"
             print(missing_statement) if len(missing_content) != 0 else None
 
-            # TODO: try Python match case
             match project_state:
                 # 1) .project, .classpath, src
                 case { "project file": True, "classpath file": True, "src directory": n } if n:
