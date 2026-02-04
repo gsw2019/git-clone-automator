@@ -209,10 +209,12 @@ def find_java_file_folders(student_repo_local: Path) -> list[Path] | None:
     try:
         for java_file in list(student_repo_local.rglob("*.java")):
             if java_file.is_file():
-                parent: Path = Path(java_file.relative_to(student_repo_local).parts[0])
+                parent: Path = java_file.parent.relative_to(student_repo_local)
 
                 if parent not in java_file_folders:
                     java_file_folders.append(parent)
+
+        return java_file_folders
 
     except OSError as e:
         print(f"error searching student repo for .java parent folders. Error code: {e.errno}, {e.strerror}")
