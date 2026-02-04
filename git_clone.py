@@ -126,7 +126,7 @@ def get_names_usernames(names_usernames_file: Path) -> list[tuple[str, str]]:
     return names_usernames
 
 
-def find_project_file(student_repo_local: Path) -> tuple[Path | None, bool]:
+def find_project_file(project_root: Path) -> tuple[Path | None, bool]:
     """Checks if the project has a .project file. Isn't required to be top-level
 
     Returns:
@@ -134,11 +134,11 @@ def find_project_file(student_repo_local: Path) -> tuple[Path | None, bool]:
         (None, True) - not found
         (None, False) - error
 
-    :param student_repo_local: path to student repo from target dir
+    :param project_root: entry point to project
     :return: tuple that indicates the search status
     """
     try:
-        for project_file in list(student_repo_local.rglob(".project")):
+        for project_file in list(project_root.rglob(".project")):
             if project_file.is_file():
                 return project_file, True
 
@@ -149,7 +149,7 @@ def find_project_file(student_repo_local: Path) -> tuple[Path | None, bool]:
     return None, True
 
 
-def find_classpath_file(student_repo_local: Path) -> tuple[Path | None, bool]:
+def find_classpath_file(project_root: Path) -> tuple[Path | None, bool]:
     """Checks if the project has a .classpath file. Isn't required to be top-level
 
     Returns:
@@ -157,11 +157,11 @@ def find_classpath_file(student_repo_local: Path) -> tuple[Path | None, bool]:
         (None, True) - not found
         (None, False) - error
 
-    :param student_repo_local: path to student repo from target dir
+    :param project_root: entry point to project
     :return: tuple that indicates the search status
     """
     try:
-        for classpath_file in list(student_repo_local.rglob(".classpath")):
+        for classpath_file in list(project_root.rglob(".classpath")):
             if classpath_file.is_file():
                 return classpath_file, True
 
@@ -172,7 +172,7 @@ def find_classpath_file(student_repo_local: Path) -> tuple[Path | None, bool]:
     return None, True
 
 
-def find_src_dir(student_repo_local: Path) -> tuple[Path | None, bool]:
+def find_src_dir(project_root: Path) -> tuple[Path | None, bool]:
     """Checks if the project has a src folder. Isn't required to be top-level
 
     Returns:
@@ -180,16 +180,16 @@ def find_src_dir(student_repo_local: Path) -> tuple[Path | None, bool]:
         (None, True) - not found
         (None, False) - error
 
-    :param student_repo_local: path to student repo from target dir
+    :param project_root: entry point to project
     :return: tuple that indicates the search status
     """
     # search for first instance of src dir in student repo
     try:
         # rglob to recursively search for src dir
-        for src_dir in list(student_repo_local.rglob("src")):
+        for src_dir in list(project_root.rglob("src")):
             if src_dir.is_dir():
                 # return relative here because if need to set in .classpath, don't want my local path
-                return Path(src_dir.relative_to(student_repo_local)), True
+                return Path(src_dir.relative_to(project_root)), True
 
     except OSError as e:
         print(f"error searching student repo for src dir. Error code: {e.errno}, {e.strerror}")
@@ -198,21 +198,21 @@ def find_src_dir(student_repo_local: Path) -> tuple[Path | None, bool]:
     return None, True
 
 
-def find_java_file_folders(student_repo_local: Path) -> list[Path] | None:
+def find_java_file_folders(project_root: Path) -> set[Path] | None:
     """Finds all parent folders of java files
 
-    :param student_repo_local: path to student repo from target dir
+    :param project_root: entry point to project
     :return: a list of folders that contain java files
     """
-    java_file_folders: list[Path] = []
+    # should all be unique
+    java_file_folders: set[Path] = set()
 
     try:
-        for java_file in list(student_repo_local.rglob("*.java")):
+        for java_file in list(project_root.rglob("*.java")):
             if java_file.is_file():
-                parent: Path = java_file.parent.relative_to(student_repo_local)
-
-                if parent not in java_file_folders:
-                    java_file_folders.append(parent)
+                parent: Path = java_file.parent.relative_to(project_root)
+                if parent.parts:
+                    java_file_folders.add(Path(parent.parts[0]))
 
         return java_file_folders
 
@@ -239,9 +239,24 @@ def is_valid_classpath_file(classpath_file: Path) -> bool:
         for tag in root.findall("classpathentry"):
             type_of_entry: str = tag.get("kind")
 
+            # local paths
             if type_of_entry == "lib":
                 print('bad .classpath file: classpathentry tag with attribute and value pair: kind="lib"')
                 return False
+
+            # bad JavaFX name or bad JRE pointer
+            if type_of_entry == "con":
+                path: str = tag.get("path")
+                if "USER_LIBRARY" in path:
+                    path_parts: list[str] = path.split('/')
+                    if path_parts[1] != "JavaFX":
+                        print(f"bad .classpath file: classpathentry tag with user library as {path_parts[1]}, not JavaFX")
+                        return False
+                elif "JRE_CONTAINER" in path:
+                    path_parts: list[str] = path.split('/')
+                    if len(path_parts) > 1:
+                        print(f"bad .classpath file: classpathentry tag with JRE pointer to machine specific JDK")
+                        return False
 
         return True
 
@@ -281,16 +296,16 @@ def is_valid_project_file(project_file: Path) -> bool:
         return False
 
 
-def inject_classpath_file(student_repo_local: Path, default_classpath_file: Path, src_dir: Path = Path("src")) -> None:
+def inject_classpath_file(project_root: Path, default_classpath_file: Path, src_dir: Path = Path("src")) -> None:
     """Injects a basic .classpath file into student repo. the file is configured to look for local
     machines JRE, Junit5 library, and JavaFX user library
 
-    :param student_repo_local: local path to student repo
+    :param project_root: entry point to project
     :param default_classpath_file: path to default .classpath file
     :param src_dir: the path from repo root of an existing src dir. Defaults to src if not passed
     :return: None
     """
-    new_classpath_file: Path = student_repo_local / ".classpath"
+    new_classpath_file: Path = project_root / ".classpath"
     try:
         default_classpath_file.copy(new_classpath_file)     # returns path to target
         print("injecting a .classpath file into student repo (build path error, deductible)")
@@ -354,16 +369,16 @@ def add_classpath_src(classpath_file: Path, src: Path) -> None:
         return None
 
 
-def check_classpath_src_paths(student_repo_local: Path, classpath_file: Path) -> None:
+def check_classpath_src_paths(project_root: Path, classpath_file: Path) -> None:
     """Ensures all folders that contain .java files are present in the .classpath file. If not,
     adds classpathentry tag to .classpath file
 
-    :param student_repo_local: local path to student repo
+    :param project_root: local path to student repo
     :param classpath_file: .classpath file in student repo
     :return: None
     """
-    java_file_folders: list[Path] = find_java_file_folders(student_repo_local)
-    current_src_folders: list[Path] = []
+    java_file_folders: set[Path] = find_java_file_folders(project_root)
+    current_src_folders: set[Path] = set()
 
     try:
         tree: ET.ElementTree = ET.parse(classpath_file)
@@ -373,12 +388,20 @@ def check_classpath_src_paths(student_repo_local: Path, classpath_file: Path) ->
             type_of_entry: str = tag.get("kind")
 
             if type_of_entry == "src":
-                current_src_folders.append(Path(tag.get("path")))
+                current_src_folders.add(Path(tag.get("path")))
 
         if java_file_folders:
             for java_file_folder in java_file_folders:
-                if java_file_folder not in current_src_folders:
+
+                is_covered = (
+                    java_file_folder in current_src_folders or                          # already in .classpath
+                    java_file_folder.parent in current_src_folders or                   # parent of java_file_folder covers it
+                    any(java_file_folder in src.parents for src in current_src_folders) # parent of an existing src folder covers it
+                )
+
+                if not is_covered:
                     add_classpath_src(classpath_file, java_file_folder)
+                    current_src_folders.add(java_file_folder)
 
     except ET.ParseError as e:
         print(f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
@@ -398,7 +421,10 @@ def get_classpath_src(classpath_file: Path) -> Path | None:
             type_of_entry: str = tag.get("kind")
 
             if type_of_entry == "src":
-                return Path(tag.get("path"))
+                path: str = tag.get("path")
+                # want the actual src folder and not ones like test
+                if "src" in path:
+                    return Path(path)
 
         return Path("")
 
@@ -407,14 +433,14 @@ def get_classpath_src(classpath_file: Path) -> Path | None:
         return None
 
 
-def inject_project_file(student_repo_local: Path, default_project_file: Path) -> None:
+def inject_project_file(project_root: Path, default_project_file: Path) -> None:
     """Injects a basic .project file into student repo. Name tag is blank
 
-    :param student_repo_local: local path to student repo
+    :param project_root: entry point to project
     :param default_project_file: path to default .project file
     :return: None
     """
-    new_project_file: Path = student_repo_local / ".project"
+    new_project_file: Path = project_root / ".project"
     try:
         default_project_file.copy(new_project_file)
     except OSError as e:
@@ -447,22 +473,22 @@ def rename_project(project_file: Path, repo_name: str) -> None:
         print(f"could not parse .project file. Error code: {e.code}, {e.msg.capitalize()}")
 
 
-def create_src_dir(student_repo_local: Path, src_dir_path: Path = Path("src")) -> Path | None:
+def create_src_dir(project_root: Path, src_dir_path: Path = Path("src")) -> Path | None:
     """Called after determining a src directory doesn't exist. Creates a src directory and subdirectories (packages) in
     students repo at the top level. if srd_dir_path is passed, will create src there.
 
     Function only returns None when fails to make src dir or fails to search for .java files
 
-    :param student_repo_local: local path to student repo
+    :param project_root: entry point to project
     :param src_dir_path: expected path of src directory
     :return: path to new local src dir or None
     """
     # create a top level src dir in students repo
     if src_dir_path != Path("src"):
         print(str(src_dir_path))
-        new_src_dir: Path = student_repo_local / src_dir_path
+        new_src_dir: Path = project_root / src_dir_path
     else:
-        new_src_dir: Path = student_repo_local / "src"
+        new_src_dir: Path = project_root / "src"
 
     try:
         # creates parent directories if they don't exist
@@ -477,7 +503,7 @@ def create_src_dir(student_repo_local: Path, src_dir_path: Path = Path("src")) -
     try:
         # rglob to recursively search for java files
         # must cast to list so is a snap shot of rglob()
-        java_files: list[Path] = list(student_repo_local.rglob("*.java"))
+        java_files: list[Path] = list(project_root.rglob("*.java"))
     except OSError as e:
         print(f"error searching student repo for .java files. Error code: {e.errno}, {e.strerror}")
         return None
@@ -635,7 +661,7 @@ def main() -> None:
             missing_statement: str = f"project is missing: {", ".join(missing_content)}"
             print(missing_statement) if len(missing_content) != 0 else None
 
-            # project file is independent of other components
+            # .project file is independent of other components
             if project_file is not None and project_file_search == True:
                 if not is_valid_project_file(project_file):
                     inject_project_file(student_repo_local, default_project_file)
@@ -645,15 +671,23 @@ def main() -> None:
                 inject_project_file(student_repo_local, default_project_file)
                 project_file = find_project_file(student_repo_local)[0]
 
+            # .project is considered the root of Eclipse projects
+            project_root = project_file.parent if project_file is not None else student_repo_local
+
+            # if the project root is different from the repository root, re-search for src dir so its relative to the project
+            if project_root != student_repo_local:
+                src_dir_state = find_src_dir(project_root)
+                src_dir, src_dir_search = src_dir_state
+
             # use match-case for src dir and .classpath entanglement
             match (classpath_file, classpath_file_search), (src_dir, src_dir_search):
                 # 1) .classpath exists, src exists
                 case (Path(), True), (Path(), True):
                     # print("case 1")
                     if not is_valid_classpath_file(classpath_file):
-                        inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
+                        inject_classpath_file(project_root, default_classpath_file, src_dir=src_dir)
                         # reset path after injection
-                        classpath_file = find_classpath_file(student_repo_local)[0]
+                        classpath_file = find_classpath_file(project_root)[0]
                     elif get_classpath_src(classpath_file) != src_dir:
                         set_classpath_src(classpath_file, src_dir)
 
@@ -661,37 +695,37 @@ def main() -> None:
                 case (Path(), True), (None, True):
                     # print("case 2")
                     if not is_valid_classpath_file(classpath_file):
-                        inject_classpath_file(student_repo_local, default_classpath_file)
-                        classpath_file = find_classpath_file(student_repo_local)[0]
-                        create_src_dir(student_repo_local)
+                        inject_classpath_file(project_root, default_classpath_file)
+                        classpath_file = find_classpath_file(project_root)[0]
+                        create_src_dir(project_root)
                     elif str(get_classpath_src(classpath_file)) != ".":
-                        create_src_dir(student_repo_local, get_classpath_src(classpath_file))
+                        create_src_dir(project_root, get_classpath_src(classpath_file))
 
                 # 3) .classpath exists, src search error
                 case (Path(), True), (None, False):
                     # print("case 3")
                     if not is_valid_classpath_file(classpath_file):
-                        inject_classpath_file(student_repo_local, default_classpath_file)
-                        classpath_file = find_classpath_file(student_repo_local)[0]
+                        inject_classpath_file(project_root, default_classpath_file)
+                        classpath_file = find_classpath_file(project_root)[0]
 
                 # 4) .classpath doesn't exist, src exist
                 case (None, True), (Path(), True):
                     # print("case 4")
-                    inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
-                    classpath_file = find_classpath_file(student_repo_local)[0]
+                    inject_classpath_file(project_root, default_classpath_file, src_dir=src_dir)
+                    classpath_file = find_classpath_file(project_root)[0]
 
                 # 5) .classpath doesn't exist, src search error
                 case (None, True), (None, False):
                     # print("case 5")
-                    inject_classpath_file(student_repo_local, default_classpath_file)
-                    classpath_file = find_classpath_file(student_repo_local)[0]
+                    inject_classpath_file(project_root, default_classpath_file)
+                    classpath_file = find_classpath_file(project_root)[0]
 
                 # 6) .classpath doesnt exist, src doesnt exist
                 case (None, True), (None, True):
                     # print("case 6")
-                    inject_classpath_file(student_repo_local, default_classpath_file)
-                    classpath_file = find_classpath_file(student_repo_local)[0]
-                    create_src_dir(student_repo_local)
+                    inject_classpath_file(project_root, default_classpath_file)
+                    classpath_file = find_classpath_file(project_root)[0]
+                    create_src_dir(project_root)
 
                 # 7) .classpath search error, src state doesn't matter
                 case (None, False), _:
@@ -699,7 +733,7 @@ def main() -> None:
                     pass
 
             # ensure all parent java folders are in the .classpath file
-            check_classpath_src_paths(student_repo_local, classpath_file)
+            check_classpath_src_paths(project_root, classpath_file)
 
             rename_project(project_file, repo_name)
 
