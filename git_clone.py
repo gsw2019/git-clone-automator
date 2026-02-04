@@ -188,8 +188,8 @@ def find_src_dir(student_repo_local: Path) -> tuple[Path | None, bool]:
         # rglob to recursively search for src dir
         for src_dir in list(student_repo_local.rglob("src")):
             if src_dir.is_dir():
-                # return relative here because if need to set in .classpath, don't want local path
-                return Path(src_dir.name), True
+                # return relative here because if need to set in .classpath, don't want my local path
+                return Path(src_dir.relative_to(student_repo_local)), True
 
     except OSError as e:
         print(f"error searching student repo for src dir. Error code: {e.errno}, {e.strerror}")
@@ -317,10 +317,12 @@ def set_classpath_src(classpath_file: Path, src: Path) -> None:
 
             if type_of_entry == "src":
                 tag.set("path", str(src))
-                break
+                print(f"set .classpath src path: {src} (build path error, deductible)")
+                tree.write(classpath_file, encoding="UTF-8", xml_declaration=True)
+                return
 
-        tree.write(classpath_file, encoding="UTF-8", xml_declaration=True)
-        print(f"set .classpath src path to {src} (build path error, deductible)")
+        # didn't find any existing classpathentry with kind="src" so need to add one
+        add_classpath_src(classpath_file, src)
 
     except ET.ParseError as e:
         print(f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
@@ -338,11 +340,12 @@ def add_classpath_src(classpath_file: Path, src: Path) -> None:
         root: ET.Element = tree.getroot()
 
         new_src_path: ET.Element = ET.Element("classpathentry")
-        new_src_path.set("kind", str(src))
+        new_src_path.set("kind", "src")
+        new_src_path.set("path", str(src))
         root.append(new_src_path)
 
         tree.write(classpath_file, encoding="UTF-8", xml_declaration=True)
-        print(f"added .classpath src path {src} (build path error, deductible)")
+        print(f"added .classpath src path: {src} (build path error, deductible)")
 
     except ET.ParseError as e:
         print(f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
@@ -454,12 +457,14 @@ def create_src_dir(student_repo_local: Path, src_dir_path: Path = Path("src")) -
     """
     # create a top level src dir in students repo
     if src_dir_path != Path("src"):
+        print(str(src_dir_path))
         new_src_dir: Path = student_repo_local / src_dir_path
     else:
         new_src_dir: Path = student_repo_local / "src"
 
     try:
-        new_src_dir.mkdir()
+        # creates parent directories if they don't exist
+        new_src_dir.mkdir(parents=True, exist_ok=True)
     except OSError as e:
         print(f"error creating src directory. Error code: {e.errno}, {e.strerror}")
         return None
@@ -642,7 +647,7 @@ def main() -> None:
             match (classpath_file, classpath_file_search), (src_dir, src_dir_search):
                 # 1) .classpath exists, src exists
                 case (Path(), True), (Path(), True):
-                    print("case 1")
+                    # print("case 1")
                     if not is_valid_classpath_file(classpath_file):
                         inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
                         # reset path after injection
@@ -652,7 +657,7 @@ def main() -> None:
 
                 # 2) .classpath exists, src doesn't exists
                 case (Path(), True), (None, True):
-                    print("case 2")
+                    # print("case 2")
                     if not is_valid_classpath_file(classpath_file):
                         inject_classpath_file(student_repo_local, default_classpath_file)
                         classpath_file = find_classpath_file(student_repo_local)[0]
@@ -662,33 +667,33 @@ def main() -> None:
 
                 # 3) .classpath exists, src search error
                 case (Path(), True), (None, False):
-                    print("case 3")
+                    # print("case 3")
                     if not is_valid_classpath_file(classpath_file):
                         inject_classpath_file(student_repo_local, default_classpath_file)
                         classpath_file = find_classpath_file(student_repo_local)[0]
 
                 # 4) .classpath doesn't exist, src exist
                 case (None, True), (Path(), True):
-                    print("case 4")
+                    # print("case 4")
                     inject_classpath_file(student_repo_local, default_classpath_file, src_dir=src_dir)
                     classpath_file = find_classpath_file(student_repo_local)[0]
 
                 # 5) .classpath doesn't exist, src search error
                 case (None, True), (None, False):
-                    print("case 5")
+                    # print("case 5")
                     inject_classpath_file(student_repo_local, default_classpath_file)
                     classpath_file = find_classpath_file(student_repo_local)[0]
 
                 # 6) .classpath doesnt exist, src doesnt exist
                 case (None, True), (None, True):
-                    print("case 6")
+                    # print("case 6")
                     inject_classpath_file(student_repo_local, default_classpath_file)
                     classpath_file = find_classpath_file(student_repo_local)[0]
                     create_src_dir(student_repo_local)
 
                 # 7) .classpath search error, src state doesn't matter
                 case (None, False), _:
-                    print("case 7")
+                    # print("case 7")
                     pass
 
             # ensure all parent java folders are in the .classpath file
