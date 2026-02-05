@@ -30,7 +30,10 @@ import xml.etree.ElementTree as ET
 import argparse
 from subprocess import CompletedProcess
 from typing import TextIO
+
+# non-standard lib packages
 from dotenv import dotenv_values
+from colorama import init, Fore, Style
 
 
 def get_args() -> Namespace:
@@ -143,7 +146,7 @@ def find_project_file(project_root: Path) -> tuple[Path | None, bool]:
                 return project_file, True
 
     except OSError as e:
-        print(f"error searching student repo for .project file. Error code: {e.errno}, {e.strerror}")
+        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to search repo for .project file. Error code: {e.errno}, {e.strerror}")
         return None, False
 
     return None, True
@@ -166,7 +169,7 @@ def find_classpath_file(project_root: Path) -> tuple[Path | None, bool]:
                 return classpath_file, True
 
     except OSError as e:
-        print(f"error searching student repo for .classpath file. Error code: {e.errno}, {e.strerror}")
+        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to search repo for .classpath file. Error code: {e.errno}, {e.strerror}")
         return None, False
 
     return None, True
@@ -192,7 +195,7 @@ def find_src_dir(project_root: Path) -> tuple[Path | None, bool]:
                 return Path(src_dir.relative_to(project_root)), True
 
     except OSError as e:
-        print(f"error searching student repo for src dir. Error code: {e.errno}, {e.strerror}")
+        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to search repo for src dir. Error code: {e.errno}, {e.strerror}")
         return None, False
 
     return None, True
@@ -217,7 +220,7 @@ def find_java_file_folders(project_root: Path) -> set[Path] | None:
         return java_file_folders
 
     except OSError as e:
-        print(f"error searching student repo for .java parent folders. Error code: {e.errno}, {e.strerror}")
+        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to search repo for .java parent folders. Error code: {e.errno}, {e.strerror}")
         return None
 
 
@@ -241,7 +244,7 @@ def is_valid_classpath_file(classpath_file: Path) -> bool:
 
             # local paths
             if type_of_entry == "lib":
-                print('bad .classpath file: classpathentry tag with attribute and value pair: kind="lib"')
+                print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " + 'bad .classpath file: classpathentry tag with attribute and value pair: kind="lib"')
                 return False
 
             # bad JavaFX name or bad JRE pointer
@@ -250,18 +253,18 @@ def is_valid_classpath_file(classpath_file: Path) -> bool:
                 if "USER_LIBRARY" in path:
                     path_parts: list[str] = path.split('/')
                     if path_parts[1] != "JavaFX":
-                        print(f"bad .classpath file: classpathentry tag with user library as {path_parts[1]}, not JavaFX")
+                        print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " + f"bad .classpath file: classpathentry tag with user library as {path_parts[1]}, not JavaFX")
                         return False
                 elif "JRE_CONTAINER" in path:
                     path_parts: list[str] = path.split('/')
                     if len(path_parts) > 1:
-                        print(f"bad .classpath file: classpathentry tag with JRE pointer to machine specific JDK")
+                        print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " + f"bad .classpath file: classpathentry tag with JRE pointer to machine specific JDK")
                         return False
 
         return True
 
     except ET.ParseError as e:
-        print(f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
+        print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " +f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
         return False
 
 
@@ -283,16 +286,16 @@ def is_valid_project_file(project_file: Path) -> bool:
         # .// tells the XML parser to search recursively for tag (XPath)
         # to avoid warnings must compare to None instead of checking truthy or falsy
         if root.find(".//buildCommand") is None:
-            print("bad .project file: missing buildCommand tag")
+            print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " + "bad .project file: missing buildCommand tag")
             return False
         if root.find(".//nature") is None:
-            print("bad .project file: missing nature tag")
+            print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " + "bad .project file: missing nature tag")
             return False
 
         return True
 
     except ET.ParseError as e:
-        print(f"could not parse .project file. Error code: {e.code}, {e.msg.capitalize()}")
+        print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " + f"could not parse .project file. Error code: {e.code}, {e.msg.capitalize()}")
         return False
 
 
@@ -308,10 +311,10 @@ def inject_classpath_file(project_root: Path, default_classpath_file: Path, src_
     new_classpath_file: Path = project_root / ".classpath"
     try:
         default_classpath_file.copy(new_classpath_file)     # returns path to target
-        print("injecting a .classpath file into student repo (build path error, deductible)")
+        print(Fore.RED + Style.BRIGHT + "[DEDUCTIBLE] " + "injecting a .classpath file into student repo")
 
     except OSError as e:
-        print(f"error injecting .classpath file. Error code: {e.errno}, {e.strerror}")
+        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to inject .classpath file. Error code: {e.errno}, {e.strerror}")
         return
 
     if str(src_dir) != "src":
@@ -334,7 +337,7 @@ def set_classpath_src(classpath_file: Path, src: Path) -> None:
 
             if type_of_entry == "src":
                 tag.set("path", str(src))
-                print(f"set .classpath src path: {src} (build path error, deductible)")
+                print(Fore.RED + Style.BRIGHT + "[DEDUCTIBLE] " + f"set .classpath src path: {src}")
                 tree.write(classpath_file, encoding="UTF-8", xml_declaration=True)
                 return
 
@@ -342,7 +345,8 @@ def set_classpath_src(classpath_file: Path, src: Path) -> None:
         add_classpath_src(classpath_file, src)
 
     except ET.ParseError as e:
-        print(f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
+        # shouldn't ever reach here because already checked its parsable
+        print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " +f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
 
 
 def add_classpath_src(classpath_file: Path, src: Path) -> None:
@@ -362,10 +366,11 @@ def add_classpath_src(classpath_file: Path, src: Path) -> None:
         root.append(new_src_path)
 
         tree.write(classpath_file, encoding="UTF-8", xml_declaration=True)
-        print(f"added .classpath src path: {src} (build path error, deductible)")
+        print(Fore.RED + Style.BRIGHT + "[DEDUCTIBLE] " + f"added .classpath src path: {src}")
 
     except ET.ParseError as e:
-        print(f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
+        # shouldn't ever reach here because already checked its parsable
+        print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " +f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
         return None
 
 
@@ -404,7 +409,8 @@ def check_classpath_src_paths(project_root: Path, classpath_file: Path) -> None:
                     current_src_folders.add(java_file_folder)
 
     except ET.ParseError as e:
-        print(f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
+        # shouldn't ever reach here because already checked its parsable
+        print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " +f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
 
 
 def get_classpath_src(classpath_file: Path) -> Path | None:
@@ -429,7 +435,7 @@ def get_classpath_src(classpath_file: Path) -> Path | None:
         return Path("")
 
     except ET.ParseError as e:
-        print(f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
+        print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " +f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
         return None
 
 
@@ -443,34 +449,10 @@ def inject_project_file(project_root: Path, default_project_file: Path) -> None:
     new_project_file: Path = project_root / ".project"
     try:
         default_project_file.copy(new_project_file)
+        print(Fore.RED + Style.BRIGHT + "[DEDUCTIBLE] " + "injecting a .project file into student repo")
+
     except OSError as e:
-        print(f"error injecting .project file. Error code {e.errno}, {e.strerror}")
-        return
-
-    print("injecting a .project file into student repo (build path error, deductible)")
-
-
-def rename_project(project_file: Path, repo_name: str) -> None:
-    """Renames the students Eclipse project to their repo name. Edits the .project file
-    using XML parser package
-
-    :param project_file: path to the .project file
-    :param repo_name: name of the local repo
-    :return: None
-    """
-    try:
-        # use XML parsing and editing tool (.project is XML)
-        # Only rename after checking project file. Don't need try-except for parsing here
-        tree: ET.ElementTree = ET.parse(project_file)
-        root: ET.Element = tree.getroot()
-        # change <name> tag, first instance is project name
-        name_tag: ET.Element[str] = root.find("name")
-        name_tag.text = repo_name
-        tree.write(project_file, encoding="UTF-8", xml_declaration=True)
-        print(f"renamed project to {repo_name}")
-
-    except ET.ParseError as e:
-        print(f"could not parse .project file. Error code: {e.code}, {e.msg.capitalize()}")
+        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to inject .project file. Error code: {e.errno}, {e.strerror}")
 
 
 def create_src_dir(project_root: Path, src_dir_path: Path = Path("src")) -> Path | None:
@@ -485,7 +467,6 @@ def create_src_dir(project_root: Path, src_dir_path: Path = Path("src")) -> Path
     """
     # create a top level src dir in students repo
     if src_dir_path != Path("src"):
-        print(str(src_dir_path))
         new_src_dir: Path = project_root / src_dir_path
     else:
         new_src_dir: Path = project_root / "src"
@@ -493,11 +474,11 @@ def create_src_dir(project_root: Path, src_dir_path: Path = Path("src")) -> Path
     try:
         # creates parent directories if they don't exist
         new_src_dir.mkdir(parents=True, exist_ok=True)
-    except OSError as e:
-        print(f"error creating src directory. Error code: {e.errno}, {e.strerror}")
-        return None
+        print(Fore.RED + Style.BRIGHT + "[DEDUCTIBLE] " + "created a src directory")
 
-    print("created a src directory (build path or compilation error, deductible)")
+    except OSError as e:
+        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to create src directory. Error code: {e.errno}, {e.strerror}")
+        return None
 
     # find all the .java files in the repo
     try:
@@ -505,7 +486,7 @@ def create_src_dir(project_root: Path, src_dir_path: Path = Path("src")) -> Path
         # must cast to list so is a snap shot of rglob()
         java_files: list[Path] = list(project_root.rglob("*.java"))
     except OSError as e:
-        print(f"error searching student repo for .java files. Error code: {e.errno}, {e.strerror}")
+        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to repo for .java files. Error code: {e.errno}, {e.strerror}")
         return None
 
     packages: list[str] = []       # keep a running list so don't duplicate packages
@@ -530,34 +511,60 @@ def create_src_dir(project_root: Path, src_dir_path: Path = Path("src")) -> Path
                     try:
                         file.move_into(new_package_dir)
                     except OSError as e:
-                        print(f"error moving {file} to {new_package_dir}. Error code: {e.errno}, {e.strerror}")
+                        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed moving {file} to {new_package_dir}. Error code: {e.errno}, {e.strerror}")
 
                 else:
                     packages.append(package_name)
 
                     # create package in src
                     try:
-                        new_package_dir.mkdir()
+                        new_package_dir.mkdir(exist_ok=True)
                     except OSError as e:
-                        print(f"error creating package {new_package_dir}. Error code: {e.errno}, {e.strerror}")
+                        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to create package {new_package_dir}. Error code: {e.errno}, {e.strerror}")
 
                     # move .java file to its respective package
                     try:
                         file.move_into(new_package_dir)
                     except OSError as e:
-                        print(f"error moving {file} to {new_package_dir}. Error code: {e.errno}, {e.strerror}")
+                        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to move {file} to {new_package_dir}. Error code: {e.errno}, {e.strerror}")
 
         # had no package declaration
         if not has_package:
             try:
                 file.move_into(new_src_dir)
             except OSError as e:
-                print(f"error moving {file} to {new_src_dir}. Error code: {e.errno}, {e.strerror}")
+                print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to move {file} to {new_src_dir}. Error code: {e.errno}, {e.strerror}")
 
     return new_src_dir
 
 
+def rename_project(project_file: Path, repo_name: str) -> None:
+    """Renames the students Eclipse project to their repo name. Edits the .project file
+    using XML parser package
+
+    :param project_file: path to the .project file
+    :param repo_name: name of the local repo
+    :return: None
+    """
+    try:
+        # use XML parsing and editing tool (.project is XML)
+        # Only rename after checking project file. Don't need try-except for parsing here
+        tree: ET.ElementTree = ET.parse(project_file)
+        root: ET.Element = tree.getroot()
+        # change <name> tag, first instance is project name
+        name_tag: ET.Element[str] = root.find("name")
+        name_tag.text = repo_name
+        tree.write(project_file, encoding="UTF-8", xml_declaration=True)
+        print(Fore.GREEN + Style.BRIGHT + "[OK] " + f"renamed project to {repo_name}")
+
+    except ET.ParseError as e:
+        print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " + f"could not parse .project file. Error code: {e.code}, {e.msg.capitalize()}")
+
+
 def main() -> None:
+    # initialize colored logs
+    init(autoreset=True)
+
     # --------------------------------------
     # set user-specific globals
     # --------------------------------------
@@ -600,7 +607,7 @@ def main() -> None:
 
     for name, username in names_usernames:
         print("\n")
-        print("=" * 80)
+        print("=" * 100)
         result_url: str = base_url.replace("[USERNAME]", username)
 
         repo_start_index: int = result_url.rfind('/') + 1            # start after base url
@@ -633,12 +640,17 @@ def main() -> None:
                      default_branch],
                     text=True).strip()
 
-                print(f"\n\n***CHECKING OUT LAST COMMIT PRIOR TO {asgn_deadline}***\n\n")
+                print(Fore.GREEN + Style.NORMAL + "\n\n===", end="")
+                print(Fore.MAGENTA + Style.NORMAL + "> ", end="")
+                print(Fore.BLUE + Style.BRIGHT + f"CHECKING OUT LAST COMMIT PRIOR TO {asgn_deadline}\n\n")
+
                 status: CompletedProcess = sp.run(["git", "-C", student_repo_local, "checkout", commit_hash])
                 if status.returncode != 0:
                     print(f"checkout failed: {status.returncode}")
 
-            print("\n\nPROJECT STRUCTURE LOGS: ")
+            print(Fore.GREEN + Style.NORMAL + "\n\n===", end="")
+            print(Fore.MAGENTA + Style.NORMAL + "> ", end="")
+            print(Fore.BLUE + Style.BRIGHT + "PROJECT STRUCTURE LOGS:")
 
             # determine state of Eclipse project components
             project_file_state: tuple[Path | None, bool] = find_project_file(student_repo_local)
@@ -658,7 +670,7 @@ def main() -> None:
             if src_dir is None and src_dir_search is True:
                 missing_content.append("src directory")
 
-            missing_statement: str = f"project is missing: {", ".join(missing_content)}"
+            missing_statement: str = Fore.YELLOW + Style.BRIGHT + "[WARNING] " + f"project is missing: {", ".join(missing_content)}"
             print(missing_statement) if len(missing_content) != 0 else None
 
             # .project file is independent of other components
@@ -744,7 +756,7 @@ def main() -> None:
             print(f"student name(s): {name}")
             print(f"student(s) GitHub username: {username}")
 
-    print("\n\n" + "=" * 80)
+    print("\n\n" + "=" * 100)
     print(f"\n{total_clones} student repos were cloned into {target_dir}\n\n")
 
 
