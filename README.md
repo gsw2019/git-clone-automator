@@ -6,9 +6,9 @@ The initial goal was to automate the cloning of student repositories containing 
 
 ### **Note on versions:** 
 
-The Python 3.14 version does not use any machine specific CL invocations. These were replaced by `pathlib` methods introduced in 3.14 and is the most recommended and safest option. 
+The Python 3.14 version avoids any machine-specific shell commands by using `pathlib` methods introduced in 3.14. Safest and most portable option. **(Recommended)**
 
-The Python 3.12 version is only safe on Unix like machines. Frankly, this version is only available in case users find it a hassle to upgrade to 3.14. It has some sloppy logic blocks, may still contain bugs, and is missing some subtle features. Not recommended.
+The Python 3.12 version is only safe on Unix like machines. Frankly, this version is only available in case users find it a hassle to upgrade to 3.14. It has some sloppy logic blocks, may still contain bugs, and is missing some subtle features. **(Not recommended)**
 
 ---
 
