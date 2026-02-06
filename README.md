@@ -4,6 +4,12 @@ Look how far we've come. What was once meant to be just a minor script to slight
 
 The initial goal was to automate the cloning of student repositories containing Eclipse projects to a local machine. Simple enough, given we had student GitHub usernames and the organization name. But of course, other issues arose, and with them, ideas of quality-of-life features.
 
+### **Note on versions:** 
+
+The Python 3.14 version does not use any machine specific CL invocations. These were replaced by `pathlib` methods introduced in 3.14 and is the most recommended and safest option. 
+
+The Python 3.12 version is only safe on Unix like machines. Frankly, this version is only available in case users find it a hassle to upgrade to 3.14. It has some sloppy logic blocks, may still contain bugs, and is missing some subtle features. Not recommended.
+
 ---
 
 ## Features
@@ -18,7 +24,7 @@ The initial goal was to automate the cloning of student repositories containing 
 - ensures the .classpath has minimal working requirements. If not, replaces with a basic template
 
 ### src directory wizard (passive)
-- checks if a src directory exists. If not, creates one and moves all .java files into it respecting their packages.
+- checks if a src directory exists. If not, creates one (if appropriate) and moves all .java files into it respecting their packages.
 
 ### rename Eclipse project (passive)
 - changes the project name to the students repo name, thus making them all unqiue and able to be imported into Eclipse simultaneously
@@ -40,8 +46,15 @@ The initial goal was to automate the cloning of student repositories containing 
 
 1. **Clone repository and enter it**
 
-       git clone https://github.com/gsw2019/git-clone-automator.git
-       cd git-clone-automator
+    -  Python 3.14+ (recommended):
+
+            git clone https://github.com/gsw2019/git-clone-automator.git
+            cd git-clone-automator
+   
+    -  Python 3.12
+
+            git clone --branch v1.0-py312 https://github.com/gsw2019/git-clone-automator.git
+            cd git-clone-automator
 
 2. **Create Python virtual environment**
 
@@ -57,7 +70,7 @@ The initial goal was to automate the cloning of student repositories containing 
 
          .venv\Scripts\activate
 
-4. **Install dependencies** (currently only 2):
+4. **Install dependencies**
 
        pip install -r requirements.txt
 
