@@ -35,9 +35,15 @@ git_clone_script_simple.py
 
 # student data
 student_github_usernames.csv
+student_github_usernames_f25.csv
+student_github_usernames_s26.csv
 proj5_student_github_usernames.csv
 proj6_student_github_usernames.csv
 students_test.csv
+student_repos
+
+# Eclipse stuff
+eclipse_grading_workspace_test
 
 # environemnt cleaner
 makefile

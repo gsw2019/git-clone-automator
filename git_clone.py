@@ -215,7 +215,9 @@ def find_java_file_folders(project_root: Path) -> set[Path] | None:
             if java_file.is_file():
                 parent: Path = java_file.parent.relative_to(project_root)
                 if parent.parts:
-                    java_file_folders.add(Path(parent.parts[0]))
+                    java_file_folders.add(Path(parent.parts[0]))    # parent folder isn't the root
+                else:
+                    java_file_folders.add(Path("."))    # parent folder is the root itself
 
         return java_file_folders
 
@@ -391,17 +393,20 @@ def check_classpath_src_paths(project_root: Path, classpath_file: Path) -> None:
 
         for tag in root.findall("classpathentry"):
             type_of_entry: str = tag.get("kind")
-
             if type_of_entry == "src":
                 current_src_folders.add(Path(tag.get("path")))
 
         if java_file_folders:
             for java_file_folder in java_file_folders:
 
-                is_covered = (
-                    java_file_folder in current_src_folders or                          # already in .classpath
-                    java_file_folder.parent in current_src_folders or                   # parent of java_file_folder covers it
-                    any(java_file_folder in src.parents for src in current_src_folders) # parent of an existing src folder covers it
+                is_covered: bool = (
+                    # already in .classpath
+                    java_file_folder in current_src_folders or
+                    # parent of java_file_folder covers it
+                    java_file_folder.parent in current_src_folders or
+                    # if src is "src" then "." is a parent thus looking covered. Avoid checking when java_file_folder is "."
+                    # condition after `and` is checking if java_file_folder is included in a long src like src/controller/java
+                    (java_file_folder != Path(".") and any(java_file_folder in src.parents for src in current_src_folders))
                 )
 
                 if not is_covered:
@@ -684,7 +689,7 @@ def main() -> None:
                 project_file = find_project_file(student_repo_local)[0]
 
             # .project is considered the root of Eclipse projects
-            project_root = project_file.parent if project_file is not None else student_repo_local
+            project_root: Path = project_file.parent if project_file is not None else student_repo_local
 
             # if the project root is different from the repository root, re-search for src dir so its relative to the project
             if project_root != student_repo_local:
