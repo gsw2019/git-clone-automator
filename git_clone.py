@@ -205,7 +205,7 @@ def find_java_file_folders(project_root: Path) -> set[Path] | None:
     """Finds all parent folders of java files
 
     :param project_root: entry point to project
-    :return: a list of folders that contain java files
+    :return: a set of folders that contain java files or None
     """
     # should all be unique
     java_file_folders: set[Path] = set()
@@ -301,13 +301,13 @@ def is_valid_project_file(project_file: Path) -> bool:
         return False
 
 
-def inject_classpath_file(project_root: Path, default_classpath_file: Path, src_dir: Path = Path("src")) -> None:
+def inject_classpath_file(project_root: Path, default_classpath_file: Path, source_dir: Path = Path("src")) -> None:
     """Injects a basic .classpath file into student repo. the file is configured to look for local
     machines JRE, Junit5 library, and JavaFX user library
 
     :param project_root: entry point to project
     :param default_classpath_file: path to default .classpath file
-    :param src_dir: the path from repo root of an existing src dir. Defaults to src if not passed
+    :param source_dir: the path from repo root of an existing source dir. Defaults to src if not passed
     :return: None
     """
     new_classpath_file: Path = project_root / ".classpath"
@@ -319,110 +319,16 @@ def inject_classpath_file(project_root: Path, default_classpath_file: Path, src_
         print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to inject .classpath file. Error code: {e.errno}, {e.strerror}")
         return
 
-    if str(src_dir) != "src":
-        set_classpath_src(new_classpath_file, src_dir)
-
-
-def set_classpath_src(classpath_file: Path, src: Path) -> None:
-    """Set the path to src files from .classpath file.
-
-    :param classpath_file: .classpath file in student repo
-    :param src: path from repo root to src files
-    :return: None
-    """
-    try:
-        tree: ET.ElementTree = ET.parse(classpath_file)
-        root: ET.Element = tree.getroot()
-
-        for tag in root.findall("classpathentry"):
-            type_of_entry: str = tag.get("kind")
-
-            if type_of_entry == "src":
-                tag.set("path", str(src))
-                print(Fore.RED + Style.BRIGHT + "[DEDUCTIBLE] " + f"set .classpath src path: {src}")
-                tree.write(classpath_file, encoding="UTF-8", xml_declaration=True)
-                return
-
-        # didn't find any existing classpathentry with kind="src" so need to add one
-        add_classpath_src(classpath_file, src)
-
-    except ET.ParseError as e:
-        # shouldn't ever reach here because already checked its parsable
-        print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " +f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
-
-
-def add_classpath_src(classpath_file: Path, src: Path) -> None:
-    """Add a new classpathentry tag with additional src path to .classpath file
-
-    :param classpath_file: path to student repo .classpath file
-    :param src: path from repo root to .java files
-    :return: None
-    """
-    try:
-        tree: ET.ElementTree = ET.parse(classpath_file)
-        root: ET.Element = tree.getroot()
-
-        new_src_path: ET.Element = ET.Element("classpathentry")
-        new_src_path.set("kind", "src")
-        new_src_path.set("path", str(src))
-        root.append(new_src_path)
-
-        tree.write(classpath_file, encoding="UTF-8", xml_declaration=True)
-        print(Fore.RED + Style.BRIGHT + "[DEDUCTIBLE] " + f"added .classpath src path: {src}")
-
-    except ET.ParseError as e:
-        # shouldn't ever reach here because already checked its parsable
-        print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " +f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
-        return None
-
-
-def check_classpath_src_paths(project_root: Path, classpath_file: Path) -> None:
-    """Ensures all folders that contain .java files are present in the .classpath file. If not,
-    adds classpathentry tag to .classpath file
-
-    :param project_root: local path to student repo
-    :param classpath_file: .classpath file in student repo
-    :return: None
-    """
-    java_file_folders: set[Path] = find_java_file_folders(project_root)
-    current_src_folders: set[Path] = set()
-
-    try:
-        tree: ET.ElementTree = ET.parse(classpath_file)
-        root: ET.Element = tree.getroot()
-
-        for tag in root.findall("classpathentry"):
-            type_of_entry: str = tag.get("kind")
-            if type_of_entry == "src":
-                current_src_folders.add(Path(tag.get("path")))
-
-        if java_file_folders:
-            for java_file_folder in java_file_folders:
-
-                is_covered: bool = (
-                    # already in .classpath
-                    java_file_folder in current_src_folders or
-                    # parent of java_file_folder covers it
-                    java_file_folder.parent in current_src_folders or
-                    # if src is "src" then "." is a parent thus looking covered. Avoid checking when java_file_folder is "."
-                    # condition after `and` is checking if java_file_folder is included in a long src like src/controller/java
-                    (java_file_folder != Path(".") and any(java_file_folder in src.parents for src in current_src_folders))
-                )
-
-                if not is_covered:
-                    add_classpath_src(classpath_file, java_file_folder)
-                    current_src_folders.add(java_file_folder)
-
-    except ET.ParseError as e:
-        # shouldn't ever reach here because already checked its parsable
-        print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " +f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
+    if str(source_dir) != "src":
+        set_classpath_source(new_classpath_file, source_dir)
 
 
 def get_classpath_src(classpath_file: Path) -> Path | None:
-    """Get the path declared in .classpath that supposedly points to src files.
+    """Get the path declared in .classpath that supposedly points to main source folder. Looks specifically
+    for 'src' in the path
 
     :param classpath_file: .classpath file in student repo
-    :return: path to src files found in .classpath
+    :return: path to source files found in .classpath
     """
     try:
         tree: ET.ElementTree = ET.parse(classpath_file)
@@ -437,11 +343,234 @@ def get_classpath_src(classpath_file: Path) -> Path | None:
                 if "src" in path:
                     return Path(path)
 
+        # case of root set as source path
         return Path("")
 
     except ET.ParseError as e:
         print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " +f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
         return None
+
+
+def get_all_classpath_sources(classpath_file: Path)-> set[Path] | None:
+    """get all declared paths to source folders pointed to by .classpath
+
+    :param classpath_file:
+    :return:
+    """
+    current_source_folders: set[Path] = set()
+
+    try:
+        tree: ET.ElementTree = ET.parse(classpath_file)
+        root: ET.Element = tree.getroot()
+
+        for tag in root.findall("classpathentry"):
+            type_of_entry: str = tag.get("kind")
+            if type_of_entry == "src":
+                current_source_folders.add(Path(tag.get("path")))
+
+        return current_source_folders
+
+    except ET.ParseError as e:
+        # shouldn't ever reach here because already checked its parsable
+        print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " +f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
+        return None
+
+
+def set_classpath_source(classpath_file: Path, source: Path) -> None:
+    """Set the path to source files from .classpath file.
+
+    :param classpath_file: .classpath file in student repo
+    :param source: path from repo root to source files
+    :return: None
+    """
+    try:
+        tree: ET.ElementTree = ET.parse(classpath_file)
+        root: ET.Element = tree.getroot()
+
+        for tag in root.findall("classpathentry"):
+            type_of_entry: str = tag.get("kind")
+
+            if type_of_entry == "src":
+                tag.set("path", str(source))
+                print(Fore.RED + Style.BRIGHT + "[DEDUCTIBLE] " + f"set .classpath src path: {source}")
+                tree.write(classpath_file, encoding="UTF-8", xml_declaration=True)
+                return
+
+        # didn't find any existing classpathentry with kind="src" so need to add one
+        add_classpath_source(classpath_file, source)
+
+    except ET.ParseError as e:
+        # shouldn't ever reach here because already checked its parsable
+        print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " +f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
+
+
+def add_classpath_source(classpath_file: Path, source: Path) -> None:
+    """Add a new classpathentry tag with additional source path to .classpath file
+
+    :param classpath_file: path to student repo .classpath file
+    :param source: path from repo root to .java files
+    :return: None
+    """
+    try:
+        tree: ET.ElementTree = ET.parse(classpath_file)
+        root: ET.Element = tree.getroot()
+
+        new_source_path: ET.Element = ET.Element("classpathentry")
+        new_source_path.set("kind", "src")
+        new_source_path.set("path", str(source))
+        root.append(new_source_path)
+
+        tree.write(classpath_file, encoding="UTF-8", xml_declaration=True)
+        print(Fore.RED + Style.BRIGHT + "[DEDUCTIBLE] " + f"added .classpath source path: {source}")
+
+    except ET.ParseError as e:
+        # shouldn't ever reach here because already checked its parsable
+        print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " +f"could not parse .classpath file. Error code: {e.code}, {e.msg.capitalize()}")
+        return None
+
+
+def check_classpath_sources(project_root: Path, classpath_file: Path) -> None:
+    """Ensures all folders that contain .java files are present in the .classpath file. If not,
+    adds classpathentry tag to .classpath file.
+
+    function only called after .classpath errors have been addressed
+
+    :param project_root: local path to student repo
+    :param classpath_file: .classpath file in student repo
+    :return: None
+    """
+    java_file_folders: set[Path] | None = find_java_file_folders(project_root)
+    current_source_folders: set[Path] | None = get_all_classpath_sources(classpath_file)
+
+    if java_file_folders:
+        for java_file_folder in java_file_folders:
+
+            # must check if covered first because that determines if we need fix anything
+            covered: bool = (
+                # already in .classpath
+                java_file_folder in current_source_folders or
+                # parent of java_file_folder covers it
+                java_file_folder.parent in current_source_folders or
+                # if source is "src" then "." is a parent thus appearing covered. Avoid checking when java_file_folder is "."
+                # condition after `and` is checking if java_file_folder is included in a long source like src/controller/java
+                (java_file_folder != Path(".") and any(java_file_folder in source.parents for source in current_source_folders))
+            )
+
+            if not covered:
+                # check if .java files exists at project root "."
+                # don't want script to add "." as a .classpath source because it breaks things
+                if java_file_folder == Path("."):
+                    move_naked_java_files(project_root, classpath_file)
+                else:
+                    # folder is a subdirectory in root, which is okay to make as a new source in .classpath
+                    add_classpath_source(classpath_file, java_file_folder)
+                    current_source_folders.add(java_file_folder)
+
+
+def get_naked_java_files(project_root: Path) -> set[Path] | None:
+    """get .java files that exists at the project root
+
+    :param project_root: entry point to project
+    :return: a set of .java files or None
+    """
+    # should all be unique
+    naked_java_files: set[Path] = set()
+
+    try:
+        # just glob at project root for naked .java files
+        for naked_java_file in list(project_root.glob("*.java")):
+            if naked_java_file.is_file():
+                naked_java_files.add(naked_java_file)
+
+        return naked_java_files
+
+    except OSError as e:
+        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to search {project_root} for .java files. Error code: {e.errno}, {e.strerror}")
+        return None
+
+
+def move_naked_java_files(project_root: Path, classpath_file: Path) -> None:
+    """move .java files from project root into a valid source folder. The valid source folder is attempted to be
+    distinguished by the type of .java file (test or not) and the existence of multiple source paths in
+    .classpath
+
+    could implement feature that creates a declared package that doesn't exist...but for now we will let these
+    cases error out
+
+    :param project_root: entry point to project
+    :param classpath_file: .classpath file in student repo
+    :return: None
+    """
+    sources: set[Path] = get_all_classpath_sources(classpath_file)
+    src: Path = get_classpath_src(classpath_file)
+
+    # get test source if one exists
+    test_src: Path | None = None
+    for source in sources:
+        if "test" in str(source).lower():
+            test_src = source
+
+    naked_java_files: set[Path] = get_naked_java_files(project_root)
+
+    if naked_java_files:
+        test_count = 0
+        src_count = 0
+
+        for naked_java_file in naked_java_files:
+            package: str | None = get_java_file_package(naked_java_file)
+            is_test_file: bool = is_junit_java_file(naked_java_file)
+
+            if package:
+                try:
+                    if is_test_file and test_src:
+                        naked_java_file.move_into(project_root / test_src / package)
+                        test_count += 1
+                    else:
+                        naked_java_file.move_into(project_root / src / package)
+                        src_count += 1
+                except OSError as e:
+                    if is_test_file and test_src:
+                        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed moving {naked_java_file} to {project_root / test_src / package}. Error code: {e.errno}, {e.strerror}")
+                    else:
+                        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed moving {naked_java_file} to {project_root / src / package}. Error code: {e.errno}, {e.strerror}")
+
+            else:
+                try:
+                    if is_test_file and test_src:
+                        naked_java_file.move_into(project_root / test_src)
+                        test_count += 1
+                    else:
+                        naked_java_file.move_into(project_root / src)
+                        src_count += 1
+                except OSError as e:
+                    if is_test_file and test_src:
+                        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed moving {naked_java_file} to {project_root / test_src}. Error code: {e.errno}, {e.strerror}")
+                    else:
+                        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed moving {naked_java_file} to {project_root / src}. Error code: {e.errno}, {e.strerror}")
+
+        if src_count and test_count:
+            print(Fore.RED + Style.BRIGHT + "[DEDUCTIBLE]\n" +
+                  f"    moved {src_count} .java file(s) from invalid source: {project_root.name} to valid source: {project_root.name / src}\n" +
+                  f"    moved {test_count} .java files(s) from invalid source: {project_root.name} to valid source: {project_root.name / test_src}")
+        elif src_count and not test_count:
+            print(Fore.RED + Style.BRIGHT + f"[DEDUCTIBLE] moved {src_count} .java file(s) from invalid source: {project_root.name} to valid source: {project_root.name / src}")
+        elif not src_count and test_count:
+            print(Fore.RED + Style.BRIGHT + f"[DEDUCTIBLE] moved {test_count} .java file(s) from invalid source: {project_root.name} to valid source: {project_root.name / test_src}")
+
+
+def is_junit_java_file(java_file: Path) -> bool:
+    """determine if a java file contains a line with the @Test declaration
+
+    :param java_file: path to a .java file
+    :return: True if @Test declaration exits in the file, False otherwise
+    """
+    for line in open(java_file).readlines()[:50]:       # should be within first 50 lines
+        if line.startswith("//") or line.startswith("*") or line.startswith("/*") or line.startswith("/**") or line.startswith("*/"):
+            continue
+        if "@Test" in line:
+            return True
+
+    return False
 
 
 def inject_project_file(project_root: Path, default_project_file: Path) -> None:
@@ -460,8 +589,28 @@ def inject_project_file(project_root: Path, default_project_file: Path) -> None:
         print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to inject .project file. Error code: {e.errno}, {e.strerror}")
 
 
+def get_java_file_package(java_file: Path) -> str | None:
+    """get the name of a package if one is declared in the .java file
+
+    :param java_file: a .java file in student repo
+    :return: name of a package or None
+    """
+    file_lines: list[str] = open(java_file).readlines()
+
+    for line in file_lines[:50]:  # only check first 50 lines...no reason package declaration is anywhere else
+        # avoid comment lines
+        if line.startswith("//") or line.startswith("*") or line.startswith("/*") or line.startswith("/**") or line.startswith("*/"):
+            continue
+
+        if line.find("package") != -1:
+            package_name: str = line.split(" ")[1].strip().rstrip(";")  # get word after 'package' and remove semicolon
+            return package_name
+
+    return None
+
+
 def create_src_dir(project_root: Path, src_dir_path: Path = Path("src")) -> Path | None:
-    """Called after determining a src directory doesn't exist. Creates a src directory and subdirectories (packages) in
+    """called after determining a src directory doesn't exist. Creates a src directory and subdirectories (packages) in
     students repo at the top level. if srd_dir_path is passed, will create src there.
 
     Function only returns None when fails to make src dir or fails to search for .java files
@@ -470,7 +619,7 @@ def create_src_dir(project_root: Path, src_dir_path: Path = Path("src")) -> Path
     :param src_dir_path: expected path of src directory
     :return: path to new local src dir or None
     """
-    # create a top level src dir in students repo
+    # define src dir in students repo
     if src_dir_path != Path("src"):
         new_src_dir: Path = project_root / src_dir_path
     else:
@@ -491,56 +640,66 @@ def create_src_dir(project_root: Path, src_dir_path: Path = Path("src")) -> Path
         # must cast to list so is a snap shot of rglob()
         java_files: list[Path] = list(project_root.rglob("*.java"))
     except OSError as e:
-        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to repo for .java files. Error code: {e.errno}, {e.strerror}")
+        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to search repo for .java files. Error code: {e.errno}, {e.strerror}")
         return None
 
     packages: list[str] = []       # keep a running list so don't duplicate packages
-    # check if any .java files declare packages
     for file in java_files:
-        file_lines: list[str] = open(file).readlines()
-        has_package: bool = False
+        package_name: str | None = get_java_file_package(file)
 
-        for line in file_lines[:50]:    # only check first 50 lines...no reason package declaration is anywhere else
-            # avoid comment lines
-            if line.startswith("//") or line.startswith("*") or line.startswith("/*") or line.startswith("/**") or line.startswith("*/"):
-                continue
+        # found package declaration
+        if package_name:
+            new_package_dir: Path = new_src_dir / package_name
 
-            # found package declaration
-            if line.find("package") != -1:
-                has_package = True
-                package_name: str = line.split(" ")[1].strip().rstrip(";")    # get word after 'package' and remove semicolon
-                new_package_dir: Path = new_src_dir / package_name
+            # if its already been created, just add file to it
+            if package_name in packages:
+                try:
+                    file.move_into(new_package_dir)
+                except OSError as e:
+                    print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed moving {file} to {new_package_dir}. Error code: {e.errno}, {e.strerror}")
 
-                # if its already been created, just add file to it
-                if package_name in packages:
-                    try:
-                        file.move_into(new_package_dir)
-                    except OSError as e:
-                        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed moving {file} to {new_package_dir}. Error code: {e.errno}, {e.strerror}")
+            else:
+                packages.append(package_name)
 
-                else:
-                    packages.append(package_name)
+                # create package in src
+                try:
+                    new_package_dir.mkdir(exist_ok=True)
+                except OSError as e:
+                    print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to create package {new_package_dir}. Error code: {e.errno}, {e.strerror}")
 
-                    # create package in src
-                    try:
-                        new_package_dir.mkdir(exist_ok=True)
-                    except OSError as e:
-                        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to create package {new_package_dir}. Error code: {e.errno}, {e.strerror}")
+                # move .java file to its respective package
+                try:
+                    file.move_into(new_package_dir)
+                except OSError as e:
+                    print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to move {file} to {new_package_dir}. Error code: {e.errno}, {e.strerror}")
 
-                    # move .java file to its respective package
-                    try:
-                        file.move_into(new_package_dir)
-                    except OSError as e:
-                        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to move {file} to {new_package_dir}. Error code: {e.errno}, {e.strerror}")
-
-        # had no package declaration
-        if not has_package:
+        # had no package declaration (goes to default package)
+        else:
             try:
                 file.move_into(new_src_dir)
             except OSError as e:
                 print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed to move {file} to {new_src_dir}. Error code: {e.errno}, {e.strerror}")
 
     return new_src_dir
+
+
+def delete_module_info_java(project_root: Path) -> None:
+    """check if a module-info.java file exists and delete it if so. This file overrides .classpath
+    and thus can cause conflicts in projects. Deleting it can cause no harm if .classpath is valid.
+    Students are expected to be using a non-module project
+
+    :param project_root: entry point to project
+    :return: None
+    """
+    try:
+        mod_info: list[Path] | None = list(project_root.rglob("module-info.java"))
+        if mod_info:
+            mod_info: Path = mod_info[0]
+            mod_info.unlink()
+            print(Fore.YELLOW + Style.BRIGHT + f"[WARNING] removed module-info.java file")
+
+    except OSError as e:
+        print(Fore.CYAN + Style.BRIGHT + "ERROR: " + f"failed search for module-info.java file. Error code: {e.errno}, {e.strerror}")
 
 
 def rename_project(project_file: Path, repo_name: str) -> None:
@@ -702,11 +861,11 @@ def main() -> None:
                 case (Path(), True), (Path(), True):
                     # print("case 1")
                     if not is_valid_classpath_file(classpath_file):
-                        inject_classpath_file(project_root, default_classpath_file, src_dir=src_dir)
+                        inject_classpath_file(project_root, default_classpath_file, source_dir=src_dir)
                         # reset path after injection
                         classpath_file = find_classpath_file(project_root)[0]
                     elif get_classpath_src(classpath_file) != src_dir:
-                        set_classpath_src(classpath_file, src_dir)
+                        set_classpath_source(classpath_file, src_dir)
 
                 # 2) .classpath exists, src doesn't exists
                 case (Path(), True), (None, True):
@@ -728,7 +887,7 @@ def main() -> None:
                 # 4) .classpath doesn't exist, src exist
                 case (None, True), (Path(), True):
                     # print("case 4")
-                    inject_classpath_file(project_root, default_classpath_file, src_dir=src_dir)
+                    inject_classpath_file(project_root, default_classpath_file, source_dir=src_dir)
                     classpath_file = find_classpath_file(project_root)[0]
 
                 # 5) .classpath doesn't exist, src search error
@@ -749,8 +908,12 @@ def main() -> None:
                     # print("case 7")
                     pass
 
-            # ensure all parent java folders are in the .classpath file
-            check_classpath_src_paths(project_root, classpath_file)
+            # ensure all parent java folders are in the .classpath file if search didn't error out
+            if classpath_file_search != False:
+                check_classpath_sources(project_root, classpath_file)
+
+            # delete module-info.java if it exists
+            delete_module_info_java(project_root)
 
             rename_project(project_file, repo_name)
 
