@@ -255,7 +255,7 @@ def is_valid_classpath_file(classpath_file: Path) -> bool:
                 if "USER_LIBRARY" in path:
                     path_parts: list[str] = path.split('/')
                     if path_parts[1] != "JavaFX":
-                        print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " + f"bad .classpath file: classpathentry tag with user library as {path_parts[1]}, not JavaFX")
+                        print(Fore.YELLOW + Style.BRIGHT + "[WARNING] " + f"bad .classpath file: classpathentry tag with user library as '{path_parts[1]}', not expected 'JavaFX'")
                         return False
                 elif "JRE_CONTAINER" in path:
                     path_parts: list[str] = path.split('/')
